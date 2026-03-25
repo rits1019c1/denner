@@ -30,11 +30,19 @@ Run our setup batch file natively or download `denner-win-x64.exe` directly from
 
 ## 💻 CLI Usage
 
-Running a Denner script natively is incredibly simple:
-```bash
-# Run a script safely. (It will prompt for permission if it uses network/fs)
-denner run main.den
+Running a Denner script natively is incredibly simple. You can even **run scripts directly from a URL**:
 
+```bash
+# Run a script directly from GitHub (Remote Import Demo)
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/main_test.den
+
+# Run a local script safely
+denner run main.den
+```
+
+### 🔓 Permission Management (Deno-style)
+Denner prioritizes security. If a script requires network or filesystem access, you must explicitly grant it via flags or interactive prompts:
+```bash
 # Run a script explicitly granting NETWORK access
 denner run main.den -N
 

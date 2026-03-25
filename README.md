@@ -30,11 +30,19 @@ curl -fsSL https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/i
 
 ## 💻 CLIコマンドの使い方
 
-Dennerスクリプトをネイティブ環境で実行するのは驚くほど簡単です：
-```bash
-# スクリプトを安全に実行する（ネットワーク・FS権限がない時はプロンプトで確認します）
-denner run main.den
+Dennerスクリプトをネイティブ環境で実行するのは驚くほど簡単です。ローカルファイルはもちろん、**URLを直接指定して実行**することも可能です：
 
+```bash
+# GitHub上のスクリプトを直接実行（インポート機能のデモ）
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/main_test.den
+
+# ローカルファイルを安全に実行
+denner run main.den
+```
+
+### 🔓 権限管理 (Denoスタイル)
+Dennerはセキュリティを重視しています。ネットワークやファイルシステムへのアクセスが必要な場合、フラグを指定するか、実行時のプロンプトで許可を与える必要があります：
+```bash
 # 明示的にネットワーク (NETWORK) アクセスを許可して実行する
 denner run main.den -N
 
