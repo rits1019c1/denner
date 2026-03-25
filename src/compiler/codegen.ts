@@ -138,10 +138,15 @@ export class CodeGenerator {
        this.emit('#ifdef _WIN32');
        this.emit('    system(("msg * " + msg).c_str());');
        this.emit('#elif __APPLE__');
-       this.emit('    system(("osascript -e \\"display alert \\\\"" + msg + "\\\\"\\"").c_str());');
+       this.emit('    system(("osascript -e \\"display alert \\\\\\"\" + msg + \"\\\\\\"\\\"").c_str());');
        this.emit('#else');
        this.emit('    system(("xmessage \\"" + msg + "\\"").c_str());');
        this.emit('#endif\n}');
+       this.emit('void denner_gui_setup(double w, double h) {}');
+       this.emit('void denner_gui_clear(string color) {}');
+       this.emit('void denner_gui_rect(double x, double y, double w, double h, string color) {}');
+       this.emit('void denner_gui_text(string text, double x, double y, string color) {}');
+       this.emit('void denner_gui_loop() {}');
     }
     if (this.requiredStdlibs.has('net')) {
        this.emit('string denner_net_get(string url) {');
