@@ -51,9 +51,9 @@ denner update
 ## 🌐 Denner Vanilla Playground
 Denner includes a beautiful, zero-build highly optimized Vanilla Web IDE. It uses a custom asynchronous JavaScript transpiler to securely emulate Denner's `net.get`, `cli.input`, and `gui.alert` standard libraries right inside your browser!
 
-```bash
-# Simply open `denner-vanilla/index.html` in your browser!
-```
+**[🚀 Try the Browser Edition here](https://rits1019c1.github.io/denner_web/)**
+*(Source code managed in [this repository](https://github.com/rits1019c1/denner_web))*
+
 - Includes a built-in **Syntax Wiki** with English & Japanese (`wiki.html`).
 - **Offline-ready** and perfect for GitHub Pages!
 
@@ -76,7 +76,7 @@ denner/
 │       ├── codegen.ts    # [C++] Transpiler backend with Stdlib mappings
 │       └── jscodegen.ts  # [JavaScript] Async Transpiler backend
 │
-└── denner-vanilla/       # 🌐 Denner Web Playground (Zero-Build)
+└── denner-web/           # 🌐 [Denner Web Repository](https://github.com/rits1019c1/denner_web)
     ├── index.html        # Beautiful Glassmorphism Web IDE
     ├── wiki.html         # Official Denner Syntax Reference (EN/JA)
     └── denner-compiler.js# Bundled JS transpiler
