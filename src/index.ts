@@ -48,7 +48,7 @@ async function main() {
   const command = args[0];
 
   if (command === '--version' || command === '-v') {
-      console.log('Denner CLI v1.0.0');
+      console.log('Denner CLI v1.1.0');
       process.exit(0);
   }
 
@@ -61,7 +61,7 @@ async function main() {
       console.log('🔄 Checking for updates...');
       try {
           // Identify current version
-          const CURRENT_VERSION = '1.0.0'; // Hardcoded for executable tracking
+          const CURRENT_VERSION = '1.1.0'; // Hardcoded for executable tracking
 
           const response = await fetch("https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/package.json");
           if (!response.ok) throw new Error("Could not fetch remote version info.");
