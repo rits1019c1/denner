@@ -10,7 +10,7 @@ if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 :: Define target executable path
 set "DEST=%BIN_DIR%\denner.exe"
 :: Ensure we use the exact name expected in the GitHub Release
-set "URL=https://github.com/Rituto/denner/releases/latest/download/denner-win-x64.exe"
+set "URL=https://github.com/rits1019c1/denner/releases/latest/download/denner-win-x64.exe"
 
 echo "🔄 Downloading denner-win-x64.exe from GitHub..."
 curl -fsSL -o "%DEST%" "%URL%"

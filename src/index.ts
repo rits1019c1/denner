@@ -37,7 +37,7 @@ async function main() {
           // Identify current version
           const CURRENT_VERSION = '1.0.0'; // Hardcoded for executable tracking
 
-          const response = await fetch("https://raw.githubusercontent.com/Rituto/denner/main/package.json");
+          const response = await fetch("https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/package.json");
           if (!response.ok) throw new Error("Could not fetch remote version info.");
           const remotePkg = await response.json();
           const remoteVersion = remotePkg.version;
@@ -63,7 +63,7 @@ async function main() {
           const platform = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "win" : "linux";
           const ext = isWin ? ".exe" : "";
           const binName = `denner-${platform}-${arch}${ext}`;
-          const binUrl = `https://github.com/Rituto/denner/releases/latest/download/${binName}`;
+          const binUrl = `https://github.com/rits1019c1/denner/releases/latest/download/${binName}`;
 
           const binReq = await fetch(binUrl);
           if (!binReq.ok) {

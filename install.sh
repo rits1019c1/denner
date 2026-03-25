@@ -17,7 +17,7 @@ elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
 fi
 
 BIN_NAME="denner-${OS}-${ARCH}"
-URL="https://github.com/Rituto/denner/releases/latest/download/${BIN_NAME}"
+URL="https://github.com/rits1019c1/denner/releases/latest/download/${BIN_NAME}"
 
 echo "🔄 Downloading ${BIN_NAME} for ${OS} ${ARCH}..."
 curl -fsSL -o /usr/local/bin/denner "$URL"
