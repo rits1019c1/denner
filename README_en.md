@@ -8,10 +8,10 @@ It features a **Dual-Transpilation Engine**, allowing it to be compiled natively
 
 ## ✨ Key Features
 - **Dual Transpilation Targets:** Compiles natively to C++ (for high-performance CLI) AND to JavaScript (for lightning-fast browser evaluations).
+- **Interactive REPL (v1.2.0):** Run `denner` without arguments to start the interactive mode. Evaluate code and experiment with Denner instantly.
 - **2D Game Engine (Web-only):** Built-in drawing APIs like `gui.setup`, `gui.rect`, and `gui.loop` to create 2D games directly in the browser!
-- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time, non-blocking keyboard interaction.
-- **URL Imports:** Native support for importing modules directly from the web (`import "https://raw.githubusercontent.com/..." as math`).
-- **Dynamic String Interpolation:** Built-in template strings (`"Result: {val * 10}"`) evaluated natively at the Parser level.
+- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time interaction.
+- **Smart Auto-Update:** Automatically checks for the latest version on startup. Keep your environment up-to-date with `denner update`.
 - **Glassmorphism Web IDE:** A stunning Monaco Editor implementation that recognizes Denner syntax with smart auto-completion.
 - **Interactive Security:** Deno-style security. Scripts accessing the network (`net.get`) automatically pause and ask for user permission.
 
@@ -31,11 +31,15 @@ Run our setup batch file natively or download `denner-win-x64.exe` directly from
 
 ## 💻 CLI Usage
 
-Running a Denner script natively is incredibly simple. You can even **run scripts directly from a URL**:
+Denner's CLI is designed to be intuitive and secure. 
 
 ```bash
-# Run a script directly from GitHub (Remote Import Demo)
+# Start the Interactive Mode (REPL)
+denner
+
+# Run a script directly from GitHub
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/main_test.den
+```
 
 # Hello World (Classic)
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den
