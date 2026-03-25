@@ -51,9 +51,9 @@ denner update
 ## 🌐 Denner Vanilla Playground
 Dennerには、手元でのビルドが一切不要な、最適化されたVanilla Web IDEが付属しています。独自の非同期JavaScriptトランスパイラを使用し、ブラウザのSandbox内で直接 Dennerの `net.get`, `cli.input`, `gui.alert` といった標準ライブラリをエミュレートできます！
 
-```bash
-# `denner-vanilla/index.html` をブラウザで開くだけで今すぐ使えます！
-```
+**[🚀 ここからブラウザ版を試せます](https://rits1019c1.github.io/denner_web/)**
+*(ソースコードは[こちらのリポジトリ](https://github.com/rits1019c1/denner_web)で管理されています)*
+
 - 日本語・英語に対応した公式の **Syntax Wiki (構文リファレンス)** が内蔵されています (`wiki.html`)。
 - **完全オフライン対応** ＆ GitHub Pagesでのホスティングに最適です！
 
@@ -76,7 +76,7 @@ denner/
 │       ├── codegen.ts    # [C++] トランスパイルバックエンド (Stdlib対応)
 │       └── jscodegen.ts  # [JavaScript] 非同期トランスパイルバックエンド
 │
-└── denner-vanilla/       # 🌐 Denner Web Playground (手元ビルド不要)
+└── denner-web/           # 🌐 [Denner Web Repository](https://github.com/rits1019c1/denner_web)
     ├── index.html        # Glassmorphismが美しいWebIDE本体
     ├── wiki.html         # 公式のDenner言語リファレンス (EN/JA切替)
     └── denner-compiler.js# バンドル・統合済みのブラウザ用JSトランスパイラ
