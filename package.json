@@ -1,0 +1,30 @@
+{
+  "name": "denner",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/src/index.js",
+  "bin": {
+    "denner": "./dist/src/index.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "build:exe": "npm run build && pkg . --targets node18-macos-arm64,node18-macos-x64,node18-linux-x64,node18-win-x64 --out-path bin/"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "jest": "^30.3.0",
+    "pkg": "^5.8.1",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
