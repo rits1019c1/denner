@@ -7,12 +7,13 @@ Denner is a modern, statically-typed programming language that features a clean 
 It features a **Dual-Transpilation Engine**, allowing it to be compiled natively down to **High-Performance C++** or securely evaluated in **Browser-only JavaScript** environments!
 
 ## ✨ Key Features
-- **Dual Transpilation Targets:** Compiles natively to C++ (for high-performance CLI executions) AND to JavaScript (for lightning-fast, browser-only evaluations).
-- **Batteries-Included Standard Library:** Cross-platform native modules (`os`, `path`, `net`, `cli`, `gui`) that work beautifully in BOTH C++ Desktop and Vanilla Web interfaces!
+- **Dual Transpilation Targets:** Compiles natively to C++ (for high-performance CLI) AND to JavaScript (for lightning-fast browser evaluations).
+- **2D Game Engine (Web-only):** Built-in drawing APIs like `gui.setup`, `gui.rect`, and `gui.loop` to create 2D games directly in the browser!
+- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time, non-blocking keyboard interaction.
 - **URL Imports:** Native support for importing modules directly from the web (`import "https://raw.githubusercontent.com/..." as math`).
 - **Dynamic String Interpolation:** Built-in template strings (`"Result: {val * 10}"`) evaluated natively at the Parser level.
-- **Glassmorphism Web IDE:** A stunning, highly customized Monaco Editor implementation natively recognizing Denner syntax with smart auto-completion.
-- **Interactive Security Prompts:** Deno-style security. Scripts trying to access the network (`net.get`) automatically pause and ask for user permission natively in the terminal!
+- **Glassmorphism Web IDE:** A stunning Monaco Editor implementation that recognizes Denner syntax with smart auto-completion.
+- **Interactive Security:** Deno-style security. Scripts accessing the network (`net.get`) automatically pause and ask for user permission.
 
 ## 📦 Installation (Standalone Executables)
 
@@ -44,6 +45,9 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 
 # Network Capability Test (Requires -N flag)
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
+
+# 2D Game Engine Demo (Arrow Keys to move)
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/game_demo.den
 
 # Run a local script safely
 denner run main.den
@@ -85,18 +89,14 @@ denner/
 │
 ├── src/                  # 💻 Denner Compiler Core (The Toolchain)
 │   ├── index.ts          # CLI Entrypoint (denner run, update, compile)
-│   ├── resolver/         # Dependency resolution engine mapping URLs & local files
+│   ├── resolver/         # Dependency resolution engine
 │   └── compiler/         # The Compilation Engine
-│       ├── lexer.ts      # Tokenizer (Lexicographical Analysis)
-│       ├── parser.ts     # AST Builder (Syntax Trees & String Interpolation)
-│       ├── typechecker.ts# Static Type Resolution Engine
-│       ├── codegen.ts    # [C++] Transpiler backend with Stdlib mappings
-│       └── jscodegen.ts  # [JavaScript] Async Transpiler backend
 │
-└── denner-web/           # 🌐 [Denner Web Repository](https://github.com/rits1019c1/denner_web)
+└── denner-vanilla/       # 🌐 Denner Web Playground
     ├── index.html        # Beautiful Glassmorphism Web IDE
-    ├── wiki.html         # Official Denner Syntax Reference (EN/JA)
-    └── denner-compiler.js# Bundled JS transpiler
+    ├── about.html        # 📒 Official Introduction & Get Started Guide
+    ├── wiki.html         # 📚 Syntax Reference (EN/JA Toggle)
+    └── denner-compiler.js# Bundled browser JS transpiler
 ```
 
 ## 📜 License
