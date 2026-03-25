@@ -8,8 +8,9 @@ import { Lexer } from './compiler/lexer';
 import { Parser } from './compiler/parser';
 import { TypeChecker } from './compiler/typechecker';
 import { CodeGenerator } from './compiler/codegen';
+import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.2.0';
+const DENNER_VERSION = '1.2.1';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -81,6 +82,9 @@ async function startRepl(): Promise<void> {
         prompt: '\x1b[35mdenner>\x1b[0m ',
     });
 
+    // We store the context as actual AST nodes for cleaner processing
+    const persistentHistory: AST.Statement[] = [];
+
     rl.prompt();
 
     rl.on('line', (line: string) => {
@@ -113,12 +117,19 @@ async function startRepl(): Promise<void> {
         try {
             const tokens = new Lexer(input).tokenize();
             const parser = new Parser(tokens);
-            const ast = parser.parse();
+            const currentAST = parser.parse();
 
-            const typechecker = new TypeChecker(ast);
+            // Create a temporary program that includes all persistent history + current line
+            const combinedProgram: AST.Program = {
+                type: 'Program',
+                line: 1,
+                body: [...persistentHistory, ...currentAST.body]
+            };
+
+            const typechecker = new TypeChecker(combinedProgram);
             typechecker.check();
 
-            const codegen = new CodeGenerator(ast);
+            const codegen = new CodeGenerator(combinedProgram);
             const cppSource = codegen.generate();
 
             const buildDir = path.join(process.cwd(), '.denner_build');
@@ -131,6 +142,10 @@ async function startRepl(): Promise<void> {
 
             fs.writeFileSync(cppFile, cppSource);
 
+            // In REPL mode, we capture output from history part to avoid re-printing
+            // However, implementing a full silent history in C++ main() is tricky.
+            // For now, we allow re-printing OR we only persist declarations.
+            // To ensure variables work, we MUST persist assignments and declarations.
             const compileResult = spawnSync('g++', [cppFile, '-o', binFile, '-std=c++14'], {
                 stdio: ['pipe', 'pipe', 'pipe']
             });
@@ -139,14 +154,28 @@ async function startRepl(): Promise<void> {
                 const stderr = compileResult.stderr?.toString() || '';
                 console.log(`\x1b[31mCompilation Error\x1b[0m`);
                 if (stderr) {
-                    // Show a simplified error message
                     const lines = stderr.split('\n').filter(l => l.includes('error:'));
                     if (lines.length > 0) {
                         console.log(`  ${lines[0].split('error:')[1]?.trim() || stderr.split('\n')[0]}`);
                     }
                 }
             } else {
+                // If it compiles and runs successfully, update persistent history
                 const runResult = spawnSync(binFile, { stdio: 'inherit' });
+                
+                if (runResult.status === 0) {
+                    for (const stmt of currentAST.body) {
+                        // Persist Variable/Function declarations and Assignments
+                        if (stmt.type === 'VariableDeclaration' || stmt.type === 'FunctionDeclaration') {
+                            persistentHistory.push(stmt);
+                        } else if (stmt.type === 'ExpressionStatement') {
+                            const expr = (stmt as AST.ExpressionStatement).expression;
+                            if (expr.type === 'AssignmentExpression') {
+                                persistentHistory.push(stmt);
+                            }
+                        }
+                    }
+                }
             }
         } catch (err: any) {
             console.log(`\x1b[31mError:\x1b[0m ${err.message}`);
@@ -221,10 +250,13 @@ async function main() {
 
   // No arguments → start interactive REPL
   if (args.length < 1) {
-    // Fire update check in background (non-blocking)
-    checkForUpdateSilently();
-    await startRepl();
-    return;
+    if (process.stdin.isTTY) {
+        checkForUpdateSilently();
+        await startRepl();
+        return;
+    } else {
+        process.exit(0);
+    }
   }
 
   const command = args[0];
