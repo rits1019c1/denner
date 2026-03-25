@@ -36,6 +36,15 @@ Running a Denner script natively is incredibly simple. You can even **run script
 # Run a script directly from GitHub (Remote Import Demo)
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/main_test.den
 
+# Hello World (Classic)
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den
+
+# Language Feature Demo
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den
+
+# Network Capability Test (Requires -N flag)
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
+
 # Run a local script safely
 denner run main.den
 ```
