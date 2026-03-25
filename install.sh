@@ -34,16 +34,44 @@ echo "✅ Denner CLI has been successfully downloaded!"
 echo "✨ ----------------------------------------- ✨"
 echo ""
 
-# Checking if DENNER_BIN_DIR is in PATH
+# Auto-add to PATH logic
+SHELL_RC=""
+case "$SHELL" in
+  */zsh)
+    SHELL_RC="$HOME/.zshrc"
+    ;;
+  */bash)
+    if [ -f "$HOME/.bash_profile" ]; then
+      SHELL_RC="$HOME/.bash_profile"
+    else
+      SHELL_RC="$HOME/.bashrc"
+    fi
+    ;;
+  *)
+    SHELL_RC="$HOME/.profile"
+    ;;
+esac
+
+EXPORT_LINE="export PATH=\"\$PATH:$DENNER_BIN_DIR\""
+
 if echo "$PATH" | grep -q "$DENNER_BIN_DIR"; then
     echo "✅ Denner is already in your PATH."
 else
-    echo "⚠️  Denner is installed to $DENNER_BIN_DIR, but this directory is not in your PATH."
-    echo "   Please add the following line to your ~/.zshrc (or ~/.bash_profile):"
-    echo ""
-    echo "   export PATH=\"\$PATH:$DENNER_BIN_DIR\""
-    echo ""
-    echo "   After adding, run: source ~/.zshrc"
+    if [ -f "$SHELL_RC" ]; then
+        if grep -q "denner/bin" "$SHELL_RC"; then
+            echo "✅ Path configuration already exists in $SHELL_RC."
+        else
+            echo "🔗 Adding Denner to PATH in $SHELL_RC..."
+            echo "" >> "$SHELL_RC"
+            echo "# Denner CLI" >> "$SHELL_RC"
+            echo "$EXPORT_LINE" >> "$SHELL_RC"
+            echo "✅ Successfully added to $SHELL_RC."
+            echo "💡 Please run: source $SHELL_RC"
+        fi
+    else
+        echo "⚠️  Could not find a shell config file (like .zshrc). Please manually add:"
+        echo "   $EXPORT_LINE"
+    fi
 fi
 
 echo ""
