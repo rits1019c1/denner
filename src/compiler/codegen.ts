@@ -23,6 +23,9 @@ export class CodeGenerator {
        this.emit('#include <stdexcept>');
        this.emit('#include <array>');
     }
+    if (this.requiredStdlibs.has('cli')) {
+       this.emit('#ifdef _WIN32\n#include <conio.h>\n#else\n#include <termios.h>\n#include <unistd.h>\n#endif');
+    }
     
     this.emit('');
     this.emit('using namespace std;');
@@ -99,6 +102,36 @@ export class CodeGenerator {
        this.emit('    string val;');
        this.emit('    getline(cin, val);');
        this.emit('    return val;\n}');
+       
+       this.emit('string denner_cli_get_key() {');
+       this.emit('#ifdef _WIN32');
+       this.emit('    int ch = _getch();');
+       this.emit('    if (ch == 0 || ch == 224) {');
+       this.emit('        ch = _getch();');
+       this.emit('        if (ch == 72) return "Up";');
+       this.emit('        if (ch == 80) return "Down";');
+       this.emit('        if (ch == 75) return "Left";');
+       this.emit('        if (ch == 77) return "Right";');
+       this.emit('    }');
+       this.emit('    return string(1, (char)ch);');
+       this.emit('#else');
+       this.emit('    struct termios oldt, newt;');
+       this.emit('    tcgetattr(STDIN_FILENO, &oldt);');
+       this.emit('    newt = oldt;');
+       this.emit('    newt.c_lflag &= ~(ICANON | ECHO);');
+       this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &newt);');
+       this.emit('    char buf[3];');
+       this.emit('    int n = read(STDIN_FILENO, buf, 3);');
+       this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);');
+       this.emit('    if (n == 3 && buf[0] == \'\\033\' && buf[1] == \'[\') {');
+       this.emit('        if (buf[2] == \'A\') return "Up";');
+       this.emit('        if (buf[2] == \'B\') return "Down";');
+       this.emit('        if (buf[2] == \'C\') return "Right";');
+       this.emit('        if (buf[2] == \'D\') return "Left";');
+       this.emit('    }');
+       this.emit('    if (n > 0) return string(1, buf[0]);');
+       this.emit('    return "";');
+       this.emit('#endif\n}');
     }
     if (this.requiredStdlibs.has('gui')) {
        this.emit('void denner_gui_alert(string msg) {');
@@ -121,6 +154,15 @@ export class CodeGenerator {
        this.emit('    }');
        this.emit('    return result;\n}');
     }
+
+    // Always emit string concatenation helper for interpolation support
+    this.emit('template<typename T> string denner_to_str(T v) { return to_string(v); }');
+    this.emit('string denner_to_str(string v) { return v; }');
+    this.emit('string denner_to_str(const char* v) { return string(v); }');
+    this.emit('template<typename L, typename R> auto denner_add(L l, R r) -> decltype(l + r) { return l + r; }');
+    this.emit('template<typename T> string denner_add(string l, T r) { return l + denner_to_str(r); }');
+    this.emit('template<typename T> string denner_add(T l, string r) { return denner_to_str(l) + r; }');
+    this.emit('string denner_add(string l, string r) { return l + r; }');
   }
 
   private emit(line: string) {
@@ -263,7 +305,9 @@ export class CodeGenerator {
         return (expr as AST.BooleanLiteral).value ? 'true' : 'false';
       case 'BinaryExpression': {
         const bin = expr as AST.BinaryExpression;
-        // String concat in C++ with + is supported by std::string
+        if (bin.operator === '+') {
+           return `denner_add(${this.generateExpression(bin.left)}, ${this.generateExpression(bin.right)})`;
+        }
         return `(${this.generateExpression(bin.left)} ${bin.operator} ${this.generateExpression(bin.right)})`;
       }
       case 'AssignmentExpression': {

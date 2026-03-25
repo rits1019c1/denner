@@ -152,10 +152,9 @@ export class JSCodeGenerator {
                   if (call.arguments.length === 0) return `denner_system_print("")`;
                   return `denner_system_print(${args})`;
                }
-               
                if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
                   let callStr = `denner.${objName}.${propName}(${args})`;
-                  if (objName === 'net' || (objName === 'cli' && propName === 'input')) {
+                  if (objName === 'net' || (objName === 'cli' && (propName === 'input' || propName === 'get_key')) || (objName === 'gui' && propName === 'loop')) {
                       return `(await ${callStr})`;
                   }
                   return callStr;

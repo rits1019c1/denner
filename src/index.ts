@@ -20,16 +20,42 @@ function promptUser(query: string): Promise<boolean> {
     }));
 }
 
+function printHelp() {
+    console.log('Usage: denner <command> [file] [options]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  run <file>      Transpile and run a Denner script');
+    console.log('  compile <file>  Transpile a Denner script to a native binary');
+    console.log('  update          Update Denner CLI to the latest version');
+    console.log('  help            Show this help message');
+    console.log('');
+    console.log('Options:');
+    console.log('  -A, --allow-all  Allow all permissions (Network, File System)');
+    console.log('  -N, --allow-net  Allow network access');
+    console.log('  -F, --allow-fs   Allow file system access');
+    console.log('  -v, --version    Show version number');
+    console.log('  -h, --help       Show help message');
+}
+
 async function main() {
   const args = process.argv.slice(2);
   
   if (args.length < 1) {
-    console.error('Usage: denner <command> <file> [options]');
-    console.error('Commands: run, compile, update');
+    printHelp();
     process.exit(1);
   }
 
   const command = args[0];
+
+  if (command === '--version' || command === '-v') {
+      console.log('Denner CLI v1.0.0');
+      process.exit(0);
+  }
+
+  if (command === '--help' || command === '-h' || command === 'help') {
+      printHelp();
+      process.exit(0);
+  }
 
   if (command === 'update' || command === 'upgrade') {
       console.log('🔄 Checking for updates...');

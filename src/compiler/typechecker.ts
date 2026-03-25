@@ -239,11 +239,10 @@ export class TypeChecker {
      const rightType = this.checkExpression(expr.right);
 
      if (['+', '-', '*', '/'].includes(expr.operator)) {
+        if (expr.operator === '+' && (leftType === 'str' || rightType === 'str')) {
+           return 'str';
+        }
         if (leftType !== 'num' || rightType !== 'num') {
-           // allow str + str?
-           if (expr.operator === '+' && leftType === 'str' && rightType === 'str') {
-              return 'str';
-           }
            throw new TypeError(`Operator ${expr.operator} requires 'num', got ${leftType} and ${rightType}.`, expr.line);
         }
         return 'num';
@@ -303,10 +302,49 @@ export class TypeChecker {
          return func.returnType;
      } else if (expr.callee.type === 'MemberExpression') {
          const mem = expr.callee as AST.MemberExpression;
-         if (mem.object.type === 'Identifier' && (mem.object as AST.Identifier).name === 'log') {
-             // log.print any args
-             expr.arguments.forEach(arg => this.checkExpression(arg));
-             return 'void';
+         if (mem.object.type === 'Identifier') {
+             const objName = (mem.object as AST.Identifier).name;
+             const propName = mem.property.name;
+
+             if (objName === 'log' && propName === 'print') {
+                 expr.arguments.forEach(arg => this.checkExpression(arg));
+                 return 'void';
+             }
+
+             if (objName === 'gui') {
+                 if (propName === 'setup') {
+                     if (expr.arguments.length !== 2) throw new TypeError(`gui.setup expects 2 arguments, got ${expr.arguments.length}.`, expr.line);
+                     expr.arguments.forEach(arg => { if (this.checkExpression(arg) !== 'num') throw new TypeError(`gui.setup arguments must be 'num'.`, expr.line); });
+                     return 'void';
+                 }
+                 if (propName === 'clear') {
+                     if (expr.arguments.length !== 1) throw new TypeError(`gui.clear expects 1 argument, got ${expr.arguments.length}.`, expr.line);
+                     if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.clear argument must be 'str'.`, expr.line);
+                     return 'void';
+                 }
+                 if (propName === 'rect') {
+                     if (expr.arguments.length !== 5) throw new TypeError(`gui.rect expects 5 arguments (x, y, w, h, color), got ${expr.arguments.length}.`, expr.line);
+                     for (let i = 0; i < 4; i++) if (this.checkExpression(expr.arguments[i]) !== 'num') throw new TypeError(`gui.rect coordinates and size must be 'num'.`, expr.line);
+                     if (this.checkExpression(expr.arguments[4]) !== 'str') throw new TypeError(`gui.rect color must be 'str'.`, expr.line);
+                     return 'void';
+                 }
+                 if (propName === 'text') {
+                     if (expr.arguments.length !== 4) throw new TypeError(`gui.text expects 4 arguments (txt, x, y, color), got ${expr.arguments.length}.`, expr.line);
+                     if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.text content must be 'str'.`, expr.line);
+                     if (this.checkExpression(expr.arguments[1]) !== 'num' || this.checkExpression(expr.arguments[2]) !== 'num') throw new TypeError(`gui.text coordinates must be 'num'.`, expr.line);
+                     if (this.checkExpression(expr.arguments[3]) !== 'str') throw new TypeError(`gui.text color must be 'str'.`, expr.line);
+                     return 'void';
+                 }
+                 if (propName === 'loop') {
+                     return 'void';
+                 }
+             }
+
+             if (objName === 'cli') {
+                 if (propName === 'get_key') {
+                     return 'str';
+                 }
+             }
          }
      }
 
