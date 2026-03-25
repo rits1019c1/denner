@@ -22,7 +22,7 @@ You do **not** need Node.js or `npm` to run Denner! It is packaged as a static z
 ### macOS / Linux
 Instantly install the latest version globally using our secure one-liner:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Rituto/denner/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/install.sh | sh
 ```
 
 ### Windows
