@@ -11,7 +11,7 @@ import { CodeGenerator } from './compiler/codegen';
 import { JSCodeGenerator } from './compiler/jscodegen';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.3.1';
+const DENNER_VERSION = '1.3.2';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -398,25 +398,30 @@ function generateHtml(jsCode: string, title: string, showDebug: boolean): string
                     ctx.font = "18px 'JetBrains Mono', monospace";
                     ctx.fillText(t, x, y);
                 },
-                loop: () => new Promise(r => {
-                    // Apply key-based movement to the first rect-type object (treated as the player)
-                    const player = physicsObjects.find(o => o.type === 'rect' && o.gravity === 0);
-                    if (player) {
-                        if (lastKey === 'Left') player.vx = -6;
-                        else if (lastKey === 'Right') player.vx = 6;
-                        else player.vx = 0;
-                        // Clamp player to canvas bounds
-                        if (canvas) {
-                            if (player.x < 0) player.x = 0;
-                            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+                        loop: () => new Promise(r => {
+                            // Apply key-based movement to the first rect-type object (treated as the player)
+                            const player = physicsObjects.find(o => o.type === 'rect' && o.gravity === 0);
+                            if (player) {
+                                if (lastKey === 'Left') player.vx = -6;
+                                else if (lastKey === 'Right') player.vx = 6;
+                                else player.vx = 0;
+                                // Clamp player to canvas bounds
+                                if (canvas) {
+                                    if (player.x < 0) player.x = 0;
+                                    if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+                                }
+                            }
+                            physicsObjects.forEach(o => o.update());
+                            physicsObjects.forEach(o => o.draw());
+                            requestAnimationFrame(r);
+                        }),
+                        get_last_key: () => {
+                            const k = lastKey;
+                            if (k === "Space") lastKey = ""; // Clear Space so it doesn't repeat every frame unless pressed again
+                            return k;
                         }
                     }
-                    physicsObjects.forEach(o => o.update());
-                    physicsObjects.forEach(o => o.draw());
-                    requestAnimationFrame(r);
-                })
-            }
-        };
+                };
 
         const denner_add = (l, r) => {
             if (typeof l === "string" || typeof r === "string") return String(l) + String(r);

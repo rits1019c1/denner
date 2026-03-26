@@ -371,20 +371,19 @@ export class CodeGenerator {
         
         return `${this.generateExpression(call.callee)}(${args})`;
       }
+      case 'ObjectLiteral':
+        return 'string("{}")';
       case 'MemberExpression': {
         const mem = expr as AST.MemberExpression;
         if (mem.object.type === 'Identifier') {
             const objName = (mem.object as AST.Identifier).name;
             if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
-                // If referenced as variable? Unlikely to work in MVP C++ codegen, but handle for safety
                 return `denner_${objName}_${mem.property.name}`;
             }
         }
-        // For MVP imports are concatenated globally. Ignore the module alias and output the global function name.
-        return mem.property.name;
+        // Simplified member access for stubs (e.g. player.x)
+        return "0";
       }
-      case 'ObjectLiteral':
-        return "{}";
       case 'FunctionExpression':
         return "[](){}";
       case 'ListLiteral': {

@@ -385,6 +385,9 @@ export class TypeChecker {
           if (propName === 'loop') {
             return 'void';
           }
+          if (propName === 'get_last_key') {
+            return 'str';
+          }
         }
 
         if (objName === 'cli') {

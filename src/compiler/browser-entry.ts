@@ -7,5 +7,6 @@ export { Lexer, Parser, JSCodeGenerator, BrowserResolver };
 
 // Global export for browser usage
 if (typeof window !== 'undefined') {
-  (window as any).Denner = { Lexer, Parser, JSCodeGenerator };
+  (window as any).Denner = { Lexer, Parser, JSCodeGenerator, BrowserResolver };
+  (window as any).DennerBundle = { Lexer, Parser, JSCodeGenerator, BrowserResolver };
 }
