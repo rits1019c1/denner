@@ -48,19 +48,19 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 ```
 
 # Hello World (Classic)
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den`
 
 # Language Feature Demo
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den`
 
 # Network Capability Test (Requires -N flag)
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N`
 
 # 2D Physics & Reactivity Demo
-denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/physics_demo.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
 
 # Shooting Game Demo
-denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/shooting_game.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/shooting_game.den`
 
 # Run a local script safely
 denner run main.den
