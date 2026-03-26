@@ -9,8 +9,9 @@ It features a **Dual-Transpilation Engine**, allowing it to be compiled natively
 ## ✨ Key Features
 - **Dual Transpilation Targets:** Compiles natively to C++ (for high-performance CLI) AND to JavaScript (for lightning-fast browser evaluations).
 - **Interactive REPL (v1.2.0):** Run `denner` without arguments to start the interactive mode. Evaluate code and experiment with Denner instantly.
-- **2D Game Engine (Web-only):** Built-in drawing APIs like `gui.setup`, `gui.rect`, and `gui.loop` to create 2D games directly in the browser!
-- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time interaction.
+- **2D Game Engine (Web-only):** Built-in drawing APIs plus a powerful **Physics Engine**. Use `.enablePhysics()` and `.on('collision', ...)` to create interactive games easily!
+- **Reactive Binding:** Use the `observe` keyword in variable declarations to automatically update UI values (e.g., `score: num observe = 0`).
+- **Standalone HTML Build:** Auto-detects GUI usage and prompts to export as a portable, single-file HTML application for easy sharing.
 - **Smart Auto-Update:** Automatically checks for the latest version on startup. Keep your environment up-to-date with `denner update`.
 - **Glassmorphism Web IDE:** A stunning Monaco Editor implementation that recognizes Denner syntax with smart auto-completion.
 - **Interactive Security:** Deno-style security. Scripts accessing the network (`net.get`) automatically pause and ask for user permission.
@@ -27,7 +28,11 @@ curl -fsSL https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/i
 ```
 
 ### Windows
-Run our setup batch file natively or download `denner-win-x64.exe` directly from the Releases page!
+Run the following one-liner in PowerShell to automatically install the latest version and configure your PATH:
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/install.ps1 | iex"
+```
+*(Alternatively, you can still use `install.bat` or download `denner-win-x64.exe` directly from the Releases page.)*
 
 ## 💻 CLI Usage
 
@@ -50,11 +55,31 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 # Network Capability Test (Requires -N flag)
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
 
-# 2D Game Engine Demo (Arrow Keys to move)
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/game_demo.den
-
+# 2D Physics & Reactivity Demo
+denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den
 # Run a local script safely
 denner run main.den
+```
+
+## 🚀 Feature Code Examples
+
+### Reactivity (Auto-UI Updates)
+```denner
+score: num observe = 0
+// Just update the variable, and the HTML badge updates automatically!
+score = score + 1
+```
+
+### Physics Engine
+```denner
+box = gui.rect(100, 100, 50, 50, "#ff0000")
+// Apply gravity
+box.enablePhysics({ gravity: 9.8 })
+
+// Collision event listener
+box.on("collision", function(other) {
+    log.print("Hit the floor!")
+})
 ```
 
 ### 🔓 Permission Management (Deno-style)
@@ -87,7 +112,8 @@ Denner includes a beautiful, zero-build highly optimized Vanilla Web IDE. It use
 ```text
 denner/
 ├── install.sh            # Global CLI Installer (Mac/Linux)
-├── install.bat           # Global CLI Installer (Windows)
+├── install.ps1           # Global CLI Installer (Windows PowerShell)
+├── install.bat           # Global CLI Installer (Windows Legacy)
 ├── bin/                  # Pre-compiled standalone native executables (pkg)
 ├── tests/                # 🧪 Automated Test Suite for Lexer, Parser, & C++
 │
