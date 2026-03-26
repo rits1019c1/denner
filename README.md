@@ -60,8 +60,7 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
 
 # シューティングゲームのデモ
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
-
+`https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/shooting_game.den`
 # ローカルファイルを安全に実行
 denner run main.den
 ```
