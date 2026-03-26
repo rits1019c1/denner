@@ -48,19 +48,19 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 ```
 
 # Hello World（基本）
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den`
 
 # 基本的な言語機能のデモ
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den`
 
 # ネットワーク機能のテスト（-Nフラグが必要）
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N`
 
 # 2D物理演算とリアリティのデモ
-denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/physics_demo.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
 
 # シューティングゲームのデモ
-denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/shooting_game.den
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
 
 # ローカルファイルを安全に実行
 denner run main.den
