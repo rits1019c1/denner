@@ -10,6 +10,7 @@ export type NodeType =
   | 'ReturnStatement'
   | 'ImportStatement'
   | 'ExportStatement'
+  | 'WhileStatement'
   // Expressions
   | 'BinaryExpression'
   | 'Identifier'
@@ -18,7 +19,11 @@ export type NodeType =
   | 'BooleanLiteral'
   | 'CallExpression'
   | 'MemberExpression'
-  | 'AssignmentExpression';
+  | 'AssignmentExpression'
+  | 'ObjectLiteral'
+  | 'FunctionExpression'
+  | 'ListLiteral'
+  | 'UnaryExpression';
 
 export interface BaseNode {
   type: NodeType;
@@ -40,7 +45,8 @@ export type Statement =
   | ForInStatement
   | ReturnStatement
   | ImportStatement
-  | ExportStatement;
+  | ExportStatement
+  | WhileStatement;
 
 export type Expression =
   | BinaryExpression
@@ -50,7 +56,11 @@ export type Expression =
   | BooleanLiteral
   | CallExpression
   | MemberExpression
-  | AssignmentExpression;
+  | AssignmentExpression
+  | ObjectLiteral
+  | FunctionExpression
+  | ListLiteral
+  | UnaryExpression;
 
 // Statements
 
@@ -58,6 +68,7 @@ export interface VariableDeclaration extends BaseNode {
   type: 'VariableDeclaration';
   id: Identifier;
   typeAnnotation: string | null;
+  isObserved: boolean;
   init: Expression;
 }
 
@@ -109,6 +120,12 @@ export interface ForInStatement extends BaseNode {
 export interface ReturnStatement extends BaseNode {
   type: 'ReturnStatement';
   argument: Expression;
+}
+
+export interface WhileStatement extends BaseNode {
+  type: 'WhileStatement';
+  test: Expression;
+  body: BlockStatement;
 }
 
 export interface ImportStatement extends BaseNode {
@@ -170,4 +187,27 @@ export interface StringLiteral extends BaseNode {
 export interface BooleanLiteral extends BaseNode {
   type: 'BooleanLiteral';
   value: boolean;
+}
+
+export interface ObjectLiteral extends BaseNode {
+  type: 'ObjectLiteral';
+  properties: { key: string, value: Expression, line: number }[];
+}
+
+export interface FunctionExpression extends BaseNode {
+  type: 'FunctionExpression';
+  params: Parameter[];
+  returnType: string;
+  body: BlockStatement;
+}
+
+export interface ListLiteral extends BaseNode {
+  type: 'ListLiteral';
+  elements: Expression[];
+}
+
+export interface UnaryExpression extends BaseNode {
+  type: 'UnaryExpression';
+  operator: string;
+  argument: Expression;
 }

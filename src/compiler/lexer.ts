@@ -15,6 +15,8 @@ export enum TokenType {
   IMPORT = 'IMPORT',
   EXPORT = 'EXPORT',
   AS = 'AS',
+  WHILE = 'WHILE',
+  OBSERVE = 'OBSERVE',
 
   // Type annotations
   TYPE_NUM = 'TYPE_NUM',
@@ -68,6 +70,8 @@ const Keywords: Record<string, TokenType> = {
   import: TokenType.IMPORT,
   export: TokenType.EXPORT,
   as: TokenType.AS,
+  while: TokenType.WHILE,
+  observe: TokenType.OBSERVE,
   true: TokenType.BOOLEAN_LITERAL,
   false: TokenType.BOOLEAN_LITERAL,
 };

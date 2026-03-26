@@ -12,6 +12,7 @@ It features a **Dual-Transpilation Engine**, allowing it to be compiled natively
 - **2D Game Engine (Web-only):** Built-in drawing APIs plus a powerful **Physics Engine**. Use `.enablePhysics()` and `.on('collision', ...)` to create interactive games easily!
 - **Reactive Binding:** Use the `observe` keyword in variable declarations to automatically update UI values (e.g., `score: num observe = 0`).
 - **Standalone HTML Build:** Auto-detects GUI usage and prompts to export as a portable, single-file HTML application for easy sharing.
+- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time interaction.
 - **Smart Auto-Update:** Automatically checks for the latest version on startup. Keep your environment up-to-date with `denner update`.
 - **Glassmorphism Web IDE:** A stunning Monaco Editor implementation that recognizes Denner syntax with smart auto-completion.
 - **Interactive Security:** Deno-style security. Scripts accessing the network (`net.get`) automatically pause and ask for user permission.
@@ -56,7 +57,11 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N
 
 # 2D Physics & Reactivity Demo
-denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den
+denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/physics_demo.den
+
+# Shooting Game Demo
+denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/shooting_game.den
+
 # Run a local script safely
 denner run main.den
 ```

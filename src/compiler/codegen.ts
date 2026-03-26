@@ -17,6 +17,9 @@ export class CodeGenerator {
     if (this.requiredStdlibs.has('os') || this.requiredStdlibs.has('path') || this.requiredStdlibs.has('gui') || this.requiredStdlibs.has('net')) {
        this.emit('#include <cstdlib>');
     }
+    if (this.requiredStdlibs.has('os')) {
+       this.emit('#ifndef _WIN32\n#include <unistd.h>\n#endif');
+    }
     if (this.requiredStdlibs.has('net')) {
        this.emit('#include <cstdio>');
        this.emit('#include <memory>');
@@ -87,6 +90,9 @@ export class CodeGenerator {
        this.emit('string denner_os_env(string key) {');
        this.emit('    if (const char* env_p = std::getenv(key.c_str())) return string(env_p);');
        this.emit('    return "";\n}');
+       this.emit('string denner_os_cwd() {');
+       this.emit('    char buf[4096];');
+       this.emit('#ifdef _WIN32\n    return string(_getcwd(buf, sizeof(buf)) ? buf : ".");\n#else\n    return string(getcwd(buf, sizeof(buf)) ? buf : ".");\n#endif\n}');
     }
     if (this.requiredStdlibs.has('path')) {
        this.emit('string denner_path_join(string a, string b) {');
@@ -144,9 +150,12 @@ export class CodeGenerator {
        this.emit('#endif\n}');
        this.emit('void denner_gui_setup(double w, double h) {}');
        this.emit('void denner_gui_clear(string color) {}');
-       this.emit('void denner_gui_rect(double x, double y, double w, double h, string color) {}');
+       this.emit('double denner_gui_rect(double x, double y, double w, double h, string color) { return 0; }');
+       this.emit('double denner_gui_image(string url, double x, double y, double w, double h) { return 0; }');
        this.emit('void denner_gui_text(string text, double x, double y, string color) {}');
        this.emit('void denner_gui_loop() {}');
+       this.emit('void denner_gui_enablePhysics(double id, ...) {}');
+       this.emit('void denner_gui_on(double id, string event, ...) {}');
     }
     if (this.requiredStdlibs.has('net')) {
        this.emit('string denner_net_get(string url) {');
@@ -188,11 +197,11 @@ export class CodeGenerator {
 
   private mapType(dennerType: string | null): string {
     switch (dennerType) {
-      case 'num': return 'double'; // Using double universally to make it simpler
+      case 'num': return 'double';
       case 'str': return 'string';
       case 'bool': return 'bool';
-      case 'list': return 'vector<auto>'; // Needs C++20 or specific types; generic fallback to 'auto' or 'std::any' or template, but let's stick to C++14/17 generic. Actually, auto arrays are only allowed in templates. For our use case, we'll map to `auto` in for-loops mostly. In variables, we shouldn't allow raw lists without types. For MVP, we'll use `auto` with initialization.
-      case 'obj': return 'map<string, auto>'; 
+      case 'list': return 'auto'; 
+      case 'obj': return 'auto';
       case 'void': return 'void';
       default: return 'auto';
     }
@@ -250,6 +259,16 @@ export class CodeGenerator {
              this.dedent();
           }
         }
+        this.emit(`}`);
+        break;
+      }
+      case 'WhileStatement': {
+        const whileStmt = stmt as AST.WhileStatement;
+        const test = this.generateExpression(whileStmt.test);
+        this.emit(`while (${test}) {`);
+        this.indent();
+        whileStmt.body.body.forEach(s => this.generateStatement(s));
+        this.dedent();
         this.emit(`}`);
         break;
       }
@@ -344,6 +363,9 @@ export class CodeGenerator {
                if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
                   return `denner_${objName}_${propName}(${args})`;
                }
+
+               // Simplified: if it's a method call on a variable, assume it's a GUI object for now
+               return `denner_gui_${propName}(${this.generateExpression(mem.object)}${args ? ', ' + args : ''})`;
            }
         }
         
@@ -360,6 +382,19 @@ export class CodeGenerator {
         }
         // For MVP imports are concatenated globally. Ignore the module alias and output the global function name.
         return mem.property.name;
+      }
+      case 'ObjectLiteral':
+        return "{}";
+      case 'FunctionExpression':
+        return "[](){}";
+      case 'ListLiteral': {
+        const list = expr as AST.ListLiteral;
+        const elements = list.elements.map(e => this.generateExpression(e)).join(', ');
+        return '{' + elements + '}';
+      }
+      case 'UnaryExpression': {
+        const un = expr as AST.UnaryExpression;
+        return `(${un.operator}${this.generateExpression(un.argument)})`;
       }
     }
     throw new Error(`Unknown expression type: ${(expr as any).type}`);

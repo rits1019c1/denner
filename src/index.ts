@@ -399,6 +399,18 @@ function generateHtml(jsCode: string, title: string, showDebug: boolean): string
                     ctx.fillText(t, x, y);
                 },
                 loop: () => new Promise(r => {
+                    // Apply key-based movement to the first rect-type object (treated as the player)
+                    const player = physicsObjects.find(o => o.type === 'rect' && o.gravity === 0);
+                    if (player) {
+                        if (lastKey === 'Left') player.vx = -6;
+                        else if (lastKey === 'Right') player.vx = 6;
+                        else player.vx = 0;
+                        // Clamp player to canvas bounds
+                        if (canvas) {
+                            if (player.x < 0) player.x = 0;
+                            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+                        }
+                    }
                     physicsObjects.forEach(o => o.update());
                     physicsObjects.forEach(o => o.draw());
                     requestAnimationFrame(r);

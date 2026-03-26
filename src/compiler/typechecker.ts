@@ -23,7 +23,7 @@ export class TypeChecker {
       variables: new Map(),
       functions: new Map()
     };
-    
+
     // Add log.print pseudo-built-in for now or handle via object resolution later
     // In our simplified version, log is an object maybe? Or we just special case "log.print"
     // Let's add a log "module" to variables that returns special types if needed, but for now we skip strict checking on `log.print`.
@@ -71,36 +71,36 @@ export class TypeChecker {
   }
 
   private lookupFunc(name: string, line: number): { returnType: string; params: string[] } {
-     let env: Env | undefined = this.currentEnv;
-     while (env) {
-       if (env.functions.has(name)) return env.functions.get(name)!;
-       env = env.parent;
-     }
-     throw new TypeError(`Undefined function '${name}'.`, line);
+    let env: Env | undefined = this.currentEnv;
+    while (env) {
+      if (env.functions.has(name)) return env.functions.get(name)!;
+      env = env.parent;
+    }
+    throw new TypeError(`Undefined function '${name}'.`, line);
   }
 
   private checkProgram(node: AST.Program) {
     // Pass 1: Register all function declarations so they can be called before definition
     for (const stmt of node.body) {
-       if (stmt.type === 'FunctionDeclaration') {
-          const decl = stmt as AST.FunctionDeclaration;
-          const paramTypes = decl.params.map(p => p.typeAnnotation);
-          this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
-       } else if (stmt.type === 'ExportStatement') {
-          const decl = (stmt as AST.ExportStatement).declaration;
-          const paramTypes = decl.params.map(p => p.typeAnnotation);
-          this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
-       }
+      if (stmt.type === 'FunctionDeclaration') {
+        const decl = stmt as AST.FunctionDeclaration;
+        const paramTypes = decl.params.map(p => p.typeAnnotation);
+        this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
+      } else if (stmt.type === 'ExportStatement') {
+        const decl = (stmt as AST.ExportStatement).declaration;
+        const paramTypes = decl.params.map(p => p.typeAnnotation);
+        this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
+      }
     }
 
     // Pass 2: Check statements
     for (const stmt of node.body) {
       if (stmt.type === 'FunctionDeclaration') {
-         this.checkFunctionDeclarationBody(stmt as AST.FunctionDeclaration);
+        this.checkFunctionDeclarationBody(stmt as AST.FunctionDeclaration);
       } else if (stmt.type === 'ExportStatement') {
-         this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
+        this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
       } else {
-         this.checkStatement(stmt, null); // Top level has no expected return
+        this.checkStatement(stmt, null); // Top level has no expected return
       }
     }
   }
@@ -119,7 +119,7 @@ export class TypeChecker {
       case 'BlockStatement':
         this.pushEnv();
         for (const s of (stmt as AST.BlockStatement).body) {
-           this.checkStatement(s, expectedReturnType);
+          this.checkStatement(s, expectedReturnType);
         }
         this.popEnv();
         break;
@@ -131,7 +131,7 @@ export class TypeChecker {
         }
         this.checkStatement(ifStmt.consequent, expectedReturnType);
         if (ifStmt.alternate) {
-           this.checkStatement(ifStmt.alternate, expectedReturnType);
+          this.checkStatement(ifStmt.alternate, expectedReturnType);
         }
         break;
       case 'ForRangeStatement':
@@ -154,59 +154,68 @@ export class TypeChecker {
         // Since generics are out, we will map items to 'any' conceptually, but we can't type check tightly inside `for in` yet.
         this.pushEnv();
         if (iterType === 'list') {
-            forIn.iterators.forEach(id => this.defineVar(id.name, 'unknown', id.line)); // or 'num'/'str' if we had generics
+          forIn.iterators.forEach(id => this.defineVar(id.name, 'unknown', id.line)); // or 'num'/'str' if we had generics
         } else if (iterType === 'obj') {
-            forIn.iterators.forEach(id => this.defineVar(id.name, 'unknown', id.line));
+          forIn.iterators.forEach(id => this.defineVar(id.name, 'unknown', id.line));
         } else {
-            throw new TypeError(`For-in loop requires 'list' or 'obj', got ${iterType}.`, forIn.line);
+          throw new TypeError(`For-in loop requires 'list' or 'obj', got ${iterType}.`, forIn.line);
         }
         this.checkStatement(forIn.body, expectedReturnType);
         this.popEnv();
         break;
       case 'ReturnStatement':
         if (!expectedReturnType) {
-           throw new TypeError(`Return statement not inside a function.`, stmt.line);
+          throw new TypeError(`Return statement not inside a function.`, stmt.line);
         }
         const retStmt = stmt as AST.ReturnStatement;
         const actualType = this.checkExpression(retStmt.argument);
         if (actualType !== expectedReturnType) {
-           throw new TypeError(`Expected return type ${expectedReturnType}, but got ${actualType}.`, retStmt.line);
+          throw new TypeError(`Expected return type ${expectedReturnType}, but got ${actualType}.`, retStmt.line);
         }
         break;
-      case 'ImportStatement':
-         // Trust for now, resolution binds types later if needed
-         break;
+      case 'ImportStatement': {
+        // Register the import alias as a variable of type 'module' so uses don't raise Undefined variable
+        const imp = stmt as AST.ImportStatement;
+        if (imp.alias) {
+          // Don't throw if already defined (duplicate import)
+          if (!this.currentEnv.variables.has(imp.alias)) {
+            this.currentEnv.variables.set(imp.alias, 'module');
+          }
+        }
+        break;
+      }
       case 'ExportStatement':
-         this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
-         break;
+        this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
+        break;
     }
   }
 
   private checkVariableDeclaration(decl: AST.VariableDeclaration) {
-     const initType = this.checkExpression(decl.init);
-     if (decl.typeAnnotation) {
-        if (decl.typeAnnotation !== initType) {
-           throw new TypeError(`Cannot assign ${initType} to variable of type ${decl.typeAnnotation}.`, decl.line);
-        }
-     } else {
-        // Infer and mutate AST node to have precise type
-        decl.typeAnnotation = initType;
-     }
+    const initType = this.checkExpression(decl.init);
+    if (decl.typeAnnotation) {
+      // Allow unknown init types (e.g. from net.get) to be assigned to any annotated type
+      if (initType !== 'unknown' && decl.typeAnnotation !== initType && initType !== 'obj') {
+        throw new TypeError(`Cannot assign ${initType} to variable of type ${decl.typeAnnotation}.`, decl.line);
+      }
+    } else {
+      // Infer and mutate AST node to have precise type
+      decl.typeAnnotation = initType;
+    }
 
-     this.defineVar(decl.id.name, decl.typeAnnotation, decl.line);
+    this.defineVar(decl.id.name, decl.typeAnnotation, decl.line);
   }
 
   private checkFunctionDeclarationBody(decl: AST.FunctionDeclaration) {
     this.pushEnv();
     for (const p of decl.params) {
-        this.defineVar(p.id.name, p.typeAnnotation, p.id.line);
+      this.defineVar(p.id.name, p.typeAnnotation, p.id.line);
     }
-    
+
     // Check body
     for (const s of decl.body.body) {
-       this.checkStatement(s, decl.returnType);
+      this.checkStatement(s, decl.returnType);
     }
-    
+
     this.popEnv();
   }
 
@@ -226,128 +235,166 @@ export class TypeChecker {
       case 'MemberExpression':
         // HACK: for basic MVP, return 'unknown' or bypass stdlib like log.print
         const mem = expr as AST.MemberExpression;
-        if (mem.object.type === 'Identifier' && (mem.object as AST.Identifier).name === 'log') {
-            return 'builtin'; 
+        if (mem.object.type === 'Identifier') {
+            const name = (mem.object as AST.Identifier).name;
+            if (['log', 'gui', 'os', 'path', 'net', 'cli'].includes(name)) {
+                return 'builtin';
+            }
         }
-        return 'unknown'; 
+        const objType = this.checkExpression(mem.object);
+        if (objType === 'gui_object') {
+            return 'gui_method';
+        }
+        return 'unknown';
+      case 'ObjectLiteral': return 'obj';
+      case 'FunctionExpression': return 'function';
+      case 'ListLiteral': return 'list';
+      case 'UnaryExpression': {
+        // Unary minus/plus — treat as num
+        return 'num';
+      }
     }
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
   }
 
   private checkBinaryExpression(expr: AST.BinaryExpression): string {
-     const leftType = this.checkExpression(expr.left);
-     const rightType = this.checkExpression(expr.right);
+    const leftType = this.checkExpression(expr.left);
+    const rightType = this.checkExpression(expr.right);
 
-     if (['+', '-', '*', '/'].includes(expr.operator)) {
-        if (expr.operator === '+' && (leftType === 'str' || rightType === 'str')) {
-           return 'str';
-        }
-        if (leftType !== 'num' || rightType !== 'num') {
-           throw new TypeError(`Operator ${expr.operator} requires 'num', got ${leftType} and ${rightType}.`, expr.line);
-        }
-        return 'num';
-     }
+    if (['+', '-', '*', '/'].includes(expr.operator)) {
+      if (expr.operator === '+' && (leftType === 'str' || rightType === 'str')) {
+        return 'str';
+      }
+      // Allow unknown/gui_method/builtin types (e.g. player.x) to pass through arithmetic
+      const flexTypes = new Set(['unknown', 'gui_method', 'builtin', 'module']);
+      if (flexTypes.has(leftType) || flexTypes.has(rightType)) return 'num';
+      if (leftType !== 'num' || rightType !== 'num') {
+        throw new TypeError(`Operator ${expr.operator} requires 'num', got ${leftType} and ${rightType}.`, expr.line);
+      }
+      return 'num';
+    }
 
-     if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) {
-         if (leftType !== rightType) {
-            throw new TypeError(`Cannot compare ${leftType} with ${rightType}.`, expr.line);
-         }
-         return 'bool';
-     }
+    if (['==', '!=', '<', '>', '<=', '>='].includes(expr.operator)) {
+      // Allow unknown types (e.g. net.get return value) in comparisons
+      if (leftType === 'unknown' || rightType === 'unknown') return 'bool';
+      if (leftType !== rightType) {
+        throw new TypeError(`Cannot compare ${leftType} with ${rightType}.`, expr.line);
+      }
+      return 'bool';
+    }
 
-     return 'unknown';
+    return 'unknown';
   }
 
   private checkAssignmentExpression(expr: AST.AssignmentExpression): string {
-     const rightType = this.checkExpression(expr.right);
-     if (expr.left.type === 'Identifier') {
-        const leftId = expr.left as AST.Identifier;
-        try {
-           const declaredType = this.lookupVar(leftId.name, leftId.line);
-           if (declaredType !== 'unknown' && declaredType !== rightType) {
-              throw new TypeError(`Cannot assign type ${rightType} to variable of type ${declaredType}.`, expr.line);
-           }
-        } catch (e: any) {
-           if (e instanceof TypeError && e.message.includes('Undefined variable')) {
-               // Variable not defined, so this assignment acts as a declaration
-               this.defineVar(leftId.name, rightType, leftId.line);
-               expr.isDeclaration = true;
-               expr.declType = rightType;
-           } else {
-               throw e;
-           }
+    const rightType = this.checkExpression(expr.right);
+    if (expr.left.type === 'Identifier') {
+      const leftId = expr.left as AST.Identifier;
+      try {
+        const declaredType = this.lookupVar(leftId.name, leftId.line);
+        if (declaredType !== 'unknown' && declaredType !== rightType) {
+          throw new TypeError(`Cannot assign type ${rightType} to variable of type ${declaredType}.`, expr.line);
         }
-     } else {
-        // Member assignment e.g. a.b = 10 -> skipping strict type checks on objects for now
-     }
-     return rightType;
+      } catch (e: any) {
+        if (e instanceof TypeError && e.message.includes('Undefined variable')) {
+          // Variable not defined, so this assignment acts as a declaration
+          this.defineVar(leftId.name, rightType, leftId.line);
+          expr.isDeclaration = true;
+          expr.declType = rightType;
+        } else {
+          throw e;
+        }
+      }
+    } else {
+      // Member assignment e.g. a.b = 10 -> skipping strict type checks on objects for now
+    }
+    return rightType;
   }
 
   private checkCallExpression(expr: AST.CallExpression): string {
-     if (expr.callee.type === 'Identifier') {
-         const name = (expr.callee as AST.Identifier).name;
-         const func = this.lookupFunc(name, expr.line);
-         
-         if (expr.arguments.length !== func.params.length) {
-            throw new TypeError(`Function '${name}' expects ${func.params.length} arguments, got ${expr.arguments.length}.`, expr.line);
-         }
+    if (expr.callee.type === 'Identifier') {
+      const name = (expr.callee as AST.Identifier).name;
+      const func = this.lookupFunc(name, expr.line);
 
-         for (let i = 0; i < expr.arguments.length; i++) {
-             const argType = this.checkExpression(expr.arguments[i]);
-             if (argType !== func.params[i]) {
-                throw new TypeError(`Argument ${i+1} of '${name}' expected ${func.params[i]}, got ${argType}.`, expr.line);
-             }
-         }
+      if (expr.arguments.length !== func.params.length) {
+        throw new TypeError(`Function '${name}' expects ${func.params.length} arguments, got ${expr.arguments.length}.`, expr.line);
+      }
 
-         return func.returnType;
+      for (let i = 0; i < expr.arguments.length; i++) {
+        const argType = this.checkExpression(expr.arguments[i]);
+        if (argType !== func.params[i]) {
+          throw new TypeError(`Argument ${i + 1} of '${name}' expected ${func.params[i]}, got ${argType}.`, expr.line);
+        }
+      }
+
+      return func.returnType;
      } else if (expr.callee.type === 'MemberExpression') {
-         const mem = expr.callee as AST.MemberExpression;
-         if (mem.object.type === 'Identifier') {
-             const objName = (mem.object as AST.Identifier).name;
-             const propName = mem.property.name;
+          const mem = expr.callee as AST.MemberExpression;
+          const calleeType = this.checkExpression(mem);
 
-             if (objName === 'log' && propName === 'print') {
-                 expr.arguments.forEach(arg => this.checkExpression(arg));
-                 return 'void';
-             }
+          if (calleeType === 'gui_method') {
+              const propName = mem.property.name;
+              if (propName === 'enablePhysics') {
+                  return 'gui_object'; // Returns self for chaining
+              }
+              if (propName === 'on') {
+                  // e.g. .on('collision', func)
+                  return 'gui_object';
+              }
+          }
 
-             if (objName === 'gui') {
-                 if (propName === 'setup') {
-                     if (expr.arguments.length !== 2) throw new TypeError(`gui.setup expects 2 arguments, got ${expr.arguments.length}.`, expr.line);
-                     expr.arguments.forEach(arg => { if (this.checkExpression(arg) !== 'num') throw new TypeError(`gui.setup arguments must be 'num'.`, expr.line); });
-                     return 'void';
-                 }
-                 if (propName === 'clear') {
-                     if (expr.arguments.length !== 1) throw new TypeError(`gui.clear expects 1 argument, got ${expr.arguments.length}.`, expr.line);
-                     if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.clear argument must be 'str'.`, expr.line);
-                     return 'void';
-                 }
-                 if (propName === 'rect') {
-                     if (expr.arguments.length !== 5) throw new TypeError(`gui.rect expects 5 arguments (x, y, w, h, color), got ${expr.arguments.length}.`, expr.line);
-                     for (let i = 0; i < 4; i++) if (this.checkExpression(expr.arguments[i]) !== 'num') throw new TypeError(`gui.rect coordinates and size must be 'num'.`, expr.line);
-                     if (this.checkExpression(expr.arguments[4]) !== 'str') throw new TypeError(`gui.rect color must be 'str'.`, expr.line);
-                     return 'void';
-                 }
-                 if (propName === 'text') {
-                     if (expr.arguments.length !== 4) throw new TypeError(`gui.text expects 4 arguments (txt, x, y, color), got ${expr.arguments.length}.`, expr.line);
-                     if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.text content must be 'str'.`, expr.line);
-                     if (this.checkExpression(expr.arguments[1]) !== 'num' || this.checkExpression(expr.arguments[2]) !== 'num') throw new TypeError(`gui.text coordinates must be 'num'.`, expr.line);
-                     if (this.checkExpression(expr.arguments[3]) !== 'str') throw new TypeError(`gui.text color must be 'str'.`, expr.line);
-                     return 'void';
-                 }
-                 if (propName === 'loop') {
-                     return 'void';
-                 }
-             }
+          if (mem.object.type === 'Identifier') {
+        const objName = (mem.object as AST.Identifier).name;
+        const propName = mem.property.name;
 
-             if (objName === 'cli') {
-                 if (propName === 'get_key') {
-                     return 'str';
-                 }
-             }
-         }
-     }
+        if (objName === 'log' && propName === 'print') {
+          expr.arguments.forEach(arg => this.checkExpression(arg));
+          return 'void';
+        }
 
-     return 'unknown';
+        if (objName === 'gui') {
+          if (propName === 'setup') {
+            if (expr.arguments.length !== 2) throw new TypeError(`gui.setup expects 2 arguments, got ${expr.arguments.length}.`, expr.line);
+            expr.arguments.forEach(arg => { if (this.checkExpression(arg) !== 'num') throw new TypeError(`gui.setup arguments must be 'num'.`, expr.line); });
+            return 'void';
+          }
+          if (propName === 'clear') {
+            if (expr.arguments.length !== 1) throw new TypeError(`gui.clear expects 1 argument, got ${expr.arguments.length}.`, expr.line);
+            if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.clear argument must be 'str'.`, expr.line);
+            return 'void';
+          }
+          if (propName === 'rect') {
+            if (expr.arguments.length !== 5) throw new TypeError(`gui.rect expects 5 arguments (x, y, w, h, color), got ${expr.arguments.length}.`, expr.line);
+            for (let i = 0; i < 4; i++) if (this.checkExpression(expr.arguments[i]) !== 'num') throw new TypeError(`gui.rect coordinates and size must be 'num'.`, expr.line);
+            if (this.checkExpression(expr.arguments[4]) !== 'str') throw new TypeError(`gui.rect color must be 'str'.`, expr.line);
+            return 'gui_object';
+          }
+          if (propName === 'image') {
+            if (expr.arguments.length !== 5) throw new TypeError(`gui.image expects 5 arguments (url, x, y, w, h), got ${expr.arguments.length}.`, expr.line);
+            if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.image url must be 'str'.`, expr.line);
+            for (let i = 1; i < 5; i++) if (this.checkExpression(expr.arguments[i]) !== 'num') throw new TypeError(`gui.image coordinates and size must be 'num'.`, expr.line);
+            return 'gui_object';
+          }
+          if (propName === 'text') {
+            if (expr.arguments.length !== 4) throw new TypeError(`gui.text expects 4 arguments (txt, x, y, color), got ${expr.arguments.length}.`, expr.line);
+            if (this.checkExpression(expr.arguments[0]) !== 'str') throw new TypeError(`gui.text content must be 'str'.`, expr.line);
+            if (this.checkExpression(expr.arguments[1]) !== 'num' || this.checkExpression(expr.arguments[2]) !== 'num') throw new TypeError(`gui.text coordinates must be 'num'.`, expr.line);
+            if (this.checkExpression(expr.arguments[3]) !== 'str') throw new TypeError(`gui.text color must be 'str'.`, expr.line);
+            return 'void';
+          }
+          if (propName === 'loop') {
+            return 'void';
+          }
+        }
+
+        if (objName === 'cli') {
+          if (propName === 'get_key') {
+            return 'str';
+          }
+        }
+      }
+    }
+
+    return 'unknown';
   }
 }

@@ -41,10 +41,14 @@ export class Parser {
     if (this.match(TokenType.RETURN)) {
       return this.parseReturnStatement();
     }
+    if (this.match(TokenType.WHILE)) {
+      return this.parseWhileStatement();
+    }
 
     // We disambiguate Variable Declaration from Assignment
     if (this.check(TokenType.IDENTIFIER)) {
-      const isDecl = this.peek(1).type === TokenType.COLON;
+      const next = this.peek(1).type;
+      const isDecl = next === TokenType.COLON || next === TokenType.OBSERVE;
       if (isDecl) {
          return this.parseVariableDeclaration();
       }
@@ -106,8 +110,11 @@ export class Parser {
     }
     this.consume(TokenType.RPAREN, "Expected ')' after parameters.");
     
-    this.consume(TokenType.COLON, "Expected ':' after function parameters for return type.");
-    const returnTypeToken = this.advance();
+    let returnType = 'void';
+    if (this.match(TokenType.COLON)) {
+      const typeToken = this.advance();
+      returnType = this.getTypeString(typeToken.type);
+    }
 
     const body = this.parseBlock();
     
@@ -115,7 +122,7 @@ export class Parser {
       type: 'FunctionDeclaration',
       id: { type: 'Identifier', name: idToken.value, line: idToken.line },
       params,
-      returnType: this.getTypeString(returnTypeToken.type),
+      returnType,
       body,
       line
     };
@@ -131,6 +138,11 @@ export class Parser {
       typeAnnotation = this.getTypeString(typeToken.type);
     }
 
+    let isObserved = false;
+    if (this.match(TokenType.OBSERVE)) {
+        isObserved = true;
+    }
+
     this.consume(TokenType.ASSIGN, "Expected '=' after variable name.");
     const init = this.parseExpression();
     
@@ -140,6 +152,7 @@ export class Parser {
       type: 'VariableDeclaration',
       id: { type: 'Identifier', name: idToken.value, line: idToken.line },
       typeAnnotation,
+      isObserved,
       init,
       line
     };
@@ -210,6 +223,18 @@ export class Parser {
         line
       };
     }
+  }
+
+  private parseWhileStatement(): AST.WhileStatement {
+    const line = this.previous().line;
+    const test = this.parseExpression();
+    const body = this.parseBlock();
+    return {
+      type: 'WhileStatement',
+      test,
+      body,
+      line
+    };
   }
 
   private parseReturnStatement(): AST.ReturnStatement {
@@ -412,13 +437,81 @@ export class Parser {
         const expr = this.parseExpression();
         this.consume(TokenType.RPAREN, "Expected ')' after expression.");
         return expr;
+      case TokenType.LBRACE:
+        return this.parseObjectLiteral();
+      case TokenType.FUNCTION:
+        return this.parseFunctionExpression();
+      case TokenType.LBRACKET:
+        return this.parseListLiteral();
+      case TokenType.MINUS:
+      case TokenType.PLUS: {
+        const operator = token.value;
+        const argument = this.parsePrimary();
+        return { type: 'UnaryExpression', operator, argument, line: token.line };
+      }
       default:
         throw this.error(token, `Unexpected token in primary expression: ${token.value} (${token.type})`);
     }
   }
 
+  private parseFunctionExpression(): AST.FunctionExpression {
+    const line = this.previous().line;
+    this.consume(TokenType.LPAREN, "Expected '(' after 'function'.");
+    const params: AST.Parameter[] = [];
+    if (!this.check(TokenType.RPAREN)) {
+      do {
+        const id = this.consume(TokenType.IDENTIFIER, "Expected parameter name.");
+        let typeAnnotation = 'any';
+        if (this.match(TokenType.COLON)) {
+           typeAnnotation = this.getTypeString(this.advance().type);
+        }
+        params.push({ id: { type: 'Identifier', name: id.value, line: id.line }, typeAnnotation });
+      } while (this.match(TokenType.COMMA));
+    }
+    this.consume(TokenType.RPAREN, "Expected ')' after parameters.");
+    
+    let returnType = 'void';
+    if (this.match(TokenType.COLON)) {
+      returnType = this.getTypeString(this.advance().type);
+    }
+    
+    const body = this.parseBlock();
+    return { type: 'FunctionExpression', params, returnType, body, line };
+  }
+
+  private parseObjectLiteral(): AST.ObjectLiteral {
+    const line = this.previous().line; // LBRACE was consumed by parsePrimary's advance() or match()
+    const properties: { key: string, value: AST.Expression, line: number }[] = [];
+    
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+        const keyToken = this.consume(TokenType.IDENTIFIER, "Expected property name.");
+        this.consume(TokenType.COLON, "Expected ':' after property name.");
+        const value = this.parseExpression();
+        properties.push({ key: keyToken.value, value, line: keyToken.line });
+        
+        if (!this.match(TokenType.COMMA)) break;
+    }
+    
+    this.consume(TokenType.RBRACE, "Expected '}' after object literal.");
+    return { type: 'ObjectLiteral', properties, line };
+  }
+
+  private parseListLiteral(): AST.ListLiteral {
+    const line = this.previous().line; // LBRACKET consumed by parsePrimary's advance()
+    const elements: AST.Expression[] = [];
+    
+    if (!this.check(TokenType.RBRACKET)) {
+        do {
+            elements.push(this.parseExpression());
+        } while (this.match(TokenType.COMMA));
+    }
+    
+    this.consume(TokenType.RBRACKET, "Expected ']' after list literal.");
+    return { type: 'ListLiteral', elements, line };
+  }
+
   private parseInterpolatedString(value: string, line: number): AST.Expression {
-    const parts = value.split(/\{([a-zA-Z_][\w]*)\}/g);
+    const parts = value.split(/\{([^}]+)\}/g);
     
     if (parts.length === 1) {
         return { type: 'StringLiteral', value: parts[0], line };
@@ -427,14 +520,20 @@ export class Parser {
     let expr: AST.Expression = { type: 'StringLiteral', value: parts[0], line };
     
     for (let i = 1; i < parts.length; i += 2) {
-        const varName = parts[i];
+        const innerSource = parts[i];
         const strPart = parts[i+1];
         
+        // Parse the inner expression
+        const innerLexer = new (require('./lexer').Lexer)(innerSource);
+        const innerTokens = innerLexer.tokenize();
+        const innerParser = new Parser(innerTokens);
+        const innerExpr = innerParser.parseExpression();
+
         expr = {
             type: 'BinaryExpression',
             left: expr,
             operator: '+',
-            right: { type: 'Identifier', name: varName, line },
+            right: innerExpr,
             line
         };
         

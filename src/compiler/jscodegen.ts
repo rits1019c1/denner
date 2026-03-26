@@ -3,15 +3,16 @@ import * as AST from './ast';
 export class JSCodeGenerator {
   private indentLevel: number = 0;
   private output: string = '';
+  public observedVars: Set<string> = new Set();
 
-  constructor(private ast: AST.Program) {}
+  constructor(private ast: AST.Program) { }
 
   public generate(): string {
     for (const stmt of this.ast.body) {
       if (stmt.type !== 'ImportStatement' && stmt.type !== 'ExportStatement') {
-         this.generateStatement(stmt);
+        this.generateStatement(stmt);
       } else if (stmt.type === 'ExportStatement') {
-         this.generateStatement((stmt as AST.ExportStatement).declaration);
+        this.generateStatement((stmt as AST.ExportStatement).declaration);
       }
     }
     return this.output;
@@ -19,9 +20,9 @@ export class JSCodeGenerator {
 
   private emit(line: string) {
     if (line === '') {
-       this.output += '\n';
+      this.output += '\n';
     } else {
-       this.output += '    '.repeat(this.indentLevel) + line + '\n';
+      this.output += '    '.repeat(this.indentLevel) + line + '\n';
     }
   }
 
@@ -33,7 +34,12 @@ export class JSCodeGenerator {
       case 'VariableDeclaration': {
         const decl = stmt as AST.VariableDeclaration;
         const init = this.generateExpression(decl.init);
-        this.emit(`let ${decl.id.name} = ${init};`);
+        if (decl.isObserved) {
+            this.observedVars.add(decl.id.name);
+            this.emit(`denner_state.${decl.id.name} = ${init};`);
+        } else {
+            this.emit(`let ${decl.id.name} = ${init};`);
+        }
         break;
       }
       case 'FunctionDeclaration': {
@@ -60,17 +66,27 @@ export class JSCodeGenerator {
         this.dedent();
         if (ifStmt.alternate) {
           if (ifStmt.alternate.type === 'IfStatement') {
-             this.emit(`} else {`);
-             this.indent();
-             this.generateStatement(ifStmt.alternate);
-             this.dedent();
+            this.emit(`} else {`);
+            this.indent();
+            this.generateStatement(ifStmt.alternate);
+            this.dedent();
           } else {
-             this.emit(`} else {`);
-             this.indent();
-             (ifStmt.alternate as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
-             this.dedent();
+            this.emit(`} else {`);
+            this.indent();
+            (ifStmt.alternate as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
+            this.dedent();
           }
         }
+        this.emit(`}`);
+        break;
+      }
+      case 'WhileStatement': {
+        const whileStmt = stmt as AST.WhileStatement;
+        const test = this.generateExpression(whileStmt.test);
+        this.emit(`while (${test}) {`);
+        this.indent();
+        whileStmt.body.body.forEach(s => this.generateStatement(s));
+        this.dedent();
         this.emit(`}`);
         break;
       }
@@ -103,20 +119,23 @@ export class JSCodeGenerator {
         break;
       }
       case 'BlockStatement': {
-         this.emit(`{`);
-         this.indent();
-         (stmt as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
-         this.dedent();
-         this.emit(`}`);
-         break;
+        this.emit(`{`);
+        this.indent();
+        (stmt as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
+        this.dedent();
+        this.emit(`}`);
+        break;
       }
     }
   }
 
   private generateExpression(expr: AST.Expression): string {
     switch (expr.type) {
-      case 'Identifier':
-        return (expr as AST.Identifier).name;
+      case 'Identifier': {
+        const name = (expr as AST.Identifier).name;
+        if (this.observedVars.has(name)) return `denner_state.${name}`;
+        return name;
+      }
       case 'NumberLiteral':
         return (expr as AST.NumberLiteral).value.toString();
       case 'StringLiteral':
@@ -132,41 +151,73 @@ export class JSCodeGenerator {
       case 'AssignmentExpression': {
         const assign = expr as AST.AssignmentExpression;
         if (assign.left.type === 'Identifier') {
-           const prefix = assign.isDeclaration ? `let ` : '';
-           return `${prefix}${(assign.left as AST.Identifier).name} = ${this.generateExpression(assign.right)}`;
+          const name = (assign.left as AST.Identifier).name;
+          if (this.observedVars.has(name)) {
+              return `denner_state.${name} = ${this.generateExpression(assign.right)}`;
+          }
+          const prefix = assign.isDeclaration ? `let ` : '';
+          return `${prefix}${name} = ${this.generateExpression(assign.right)}`;
         }
-        const mem = assign.left as AST.MemberExpression;
-        return `${mem.property.name} = ${this.generateExpression(assign.right)}`;
+        // MemberExpression left side (e.g. list[i] = ...) — use full expression
+        const leftStr = this.generateExpression(assign.left);
+        return `${leftStr} = ${this.generateExpression(assign.right)}`;
       }
       case 'CallExpression': {
         const call = expr as AST.CallExpression;
         const args = call.arguments.map((a: AST.Expression) => this.generateExpression(a)).join(', ');
-        
+
         if (call.callee.type === 'MemberExpression') {
-           const mem = call.callee as AST.MemberExpression;
-           if (mem.object.type === 'Identifier') {
-               const objName = (mem.object as AST.Identifier).name;
-               const propName = mem.property.name;
-               
-               if (objName === 'log' && propName === 'print') {
-                  if (call.arguments.length === 0) return `denner_system_print("")`;
-                  return `denner_system_print(${args})`;
-               }
-               if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
-                  let callStr = `denner.${objName}.${propName}(${args})`;
-                  if (objName === 'net' || (objName === 'cli' && (propName === 'input' || propName === 'get_key')) || (objName === 'gui' && propName === 'loop')) {
-                      return `(await ${callStr})`;
-                  }
-                  return callStr;
-               }
-           }
+          const mem = call.callee as AST.MemberExpression;
+          if (mem.object.type === 'Identifier') {
+            const objName = (mem.object as AST.Identifier).name;
+            const propName = mem.property.name;
+
+            if (objName === 'log' && propName === 'print') {
+              if (call.arguments.length === 0) return `denner_system_print("")`;
+              return `denner_system_print(${args})`;
+            }
+            if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
+              let callStr = `denner.${objName}.${propName}(${args})`;
+              if (objName === 'net' || (objName === 'cli' && (propName === 'input' || propName === 'get_key')) || (objName === 'gui' && propName === 'loop')) {
+                return `(await ${callStr})`;
+              }
+              return callStr;
+            }
+          } else {
+              // Method call on an object (e.g. rect.enablePhysics())
+              const obj = this.generateExpression(mem.object);
+              const prop = mem.property.name;
+              return `${obj}.${prop}(${args})`;
+          }
         }
-        
+
         return `${this.generateExpression(call.callee)}(${args})`;
       }
       case 'MemberExpression': {
         const mem = expr as AST.MemberExpression;
-        return mem.property.name;
+        return `${this.generateExpression(mem.object)}.${mem.property.name}`;
+      }
+      case 'ObjectLiteral': {
+        const obj = expr as AST.ObjectLiteral;
+        const props = obj.properties.map(p => `${p.key}: ${this.generateExpression(p.value)}`).join(', ');
+        return `{ ${props} }`;
+      }
+      case 'FunctionExpression': {
+        const func = expr as AST.FunctionExpression;
+        const params = func.params.map(p => p.id.name).join(', ');
+        const subGen = new JSCodeGenerator({ type: 'Program', body: func.body.body, line: func.line } as any);
+        this.observedVars.forEach(v => subGen.observedVars.add(v));
+        const body = subGen.generate().split('\n').map(l => '  ' + l).join('\n');
+        return `function(${params}) {\n${body}\n}`;
+      }
+      case 'ListLiteral': {
+        const list = expr as AST.ListLiteral;
+        const elements = list.elements.map(e => this.generateExpression(e)).join(', ');
+        return `[${elements}]`;
+      }
+      case 'UnaryExpression': {
+        const un = expr as AST.UnaryExpression;
+        return `(${un.operator}${this.generateExpression(un.argument)})`;
       }
     }
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
