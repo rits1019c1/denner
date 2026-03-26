@@ -17,6 +17,7 @@ curl -fsSL -o "%DEST%" "%URL%"
 
 if %ERRORLEVEL% neq 0 (
     echo "❌ Failed to download the Denner executable. Please make sure you are connected to the Internet or the URL is correct."
+    pause
     exit /b 1
 )
 
