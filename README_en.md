@@ -60,7 +60,7 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
 
 # Shooting Game Demo
-`denner run https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/denner_tests/shooting_game.den`
+`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/shooting_game.den`n`
 
 # Run a local script safely
 denner run main.den
