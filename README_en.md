@@ -63,8 +63,7 @@ denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/
 `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/shooting_game.den`n`
 
 # Run a local script safely
-denner run main.den
-```
+`denner run main.den`
 
 ## 🚀 Feature Code Examples
 
