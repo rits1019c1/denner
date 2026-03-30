@@ -11,7 +11,7 @@ import { CodeGenerator } from './compiler/codegen';
 import { JSCodeGenerator } from './compiler/jscodegen';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.3.2';
+const DENNER_VERSION = '1.4.0';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -636,7 +636,7 @@ async function main() {
 
             fs.writeFileSync(cppFile, cppSource);
 
-let compileArgs = [cppFile, '-o', binFile, '-std=c++14'];
+            let compileArgs = [cppFile, '-o', binFile, '-std=c++14'];
             if (detectGuiUsage(ast)) {
                 const platform = process.platform;
                 let sdlFlags: string[];
