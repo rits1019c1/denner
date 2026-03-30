@@ -17,6 +17,8 @@ export enum TokenType {
   AS = 'AS',
   WHILE = 'WHILE',
   OBSERVE = 'OBSERVE',
+  CLASS = 'CLASS',
+  THIS = 'THIS',
 
   // Type annotations
   TYPE_NUM = 'TYPE_NUM',
@@ -72,6 +74,8 @@ const Keywords: Record<string, TokenType> = {
   as: TokenType.AS,
   while: TokenType.WHILE,
   observe: TokenType.OBSERVE,
+  class: TokenType.CLASS,
+  this: TokenType.THIS,
   true: TokenType.BOOLEAN_LITERAL,
   false: TokenType.BOOLEAN_LITERAL,
 };
@@ -207,9 +211,9 @@ export class Lexer {
     }
 
     let type = TokenType.IDENTIFIER;
-    if (Keywords[value]) {
+    if (Object.prototype.hasOwnProperty.call(Keywords, value)) {
       type = Keywords[value];
-    } else if (TypeKeywords[value]) {
+    } else if (Object.prototype.hasOwnProperty.call(TypeKeywords, value)) {
       type = TypeKeywords[value];
     }
 

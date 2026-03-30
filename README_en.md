@@ -4,18 +4,22 @@
 ➡️ **[日本語で読む (Read in Japanese)](README.md)**
 
 Denner is a modern, statically-typed programming language that features a clean syntax inspired by Swift, Python, and JavaScript. 
-It features a **Dual-Transpilation Engine**, allowing it to be compiled natively down to **High-Performance C++** or securely evaluated in **Browser-only JavaScript** environments!
+It features a **Triple-Transpilation Engine**, supporting high-performance **C++ (SDL2)**, **Browser-only JavaScript**, and **Console** backends!
 
 ## ✨ Key Features
-- **Dual Transpilation Targets:** Compiles natively to C++ (for high-performance CLI) AND to JavaScript (for lightning-fast browser evaluations).
-- **Interactive REPL (v1.2.0):** Run `denner` without arguments to start the interactive mode. Evaluate code and experiment with Denner instantly.
-- **2D Game Engine (Web-only):** Built-in drawing APIs plus a powerful **Physics Engine**. Use `.enablePhysics()` and `.on('collision', ...)` to create interactive games easily!
-- **Reactive Binding:** Use the `observe` keyword in variable declarations to automatically update UI values (e.g., `score: num observe = 0`).
-- **Standalone HTML Build:** Auto-detects GUI usage and prompts to export as a portable, single-file HTML application for easy sharing.
-- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`). Supports `cli.get_key()` for real-time interaction.
-- **Smart Auto-Update:** Automatically checks for the latest version on startup. Keep your environment up-to-date with `denner update`.
-- **Glassmorphism Web IDE:** A stunning Monaco Editor implementation that recognizes Denner syntax with smart auto-completion.
-- **Interactive Security:** Deno-style security. Scripts accessing the network (`net.get`) automatically pause and ask for user permission.
+- **Triple Transpilation:** Native **C++ (SDL2)** for high performance, **JavaScript** for browser, and console backends.
+- **Interactive REPL (v1.2.0):** Run `denner` without arguments to start the interactive mode.
+- **Object-Oriented Programming (v1.3.2):** Full support for `class`, `constructor`, and `this`.
+- **2D Game Engine (Native & Web):**
+  - **Native (SDL2):** Runs on C++ + SDL2. Fast and offline-capable
+  - **Web (HTML):** Runs in browser. Easy to share
+  - **Common APIs:** `gui.setup`, `gui.rect`, `gui.image`, `gui.text`, `gui.clear`, `gui.loop`, `gui.draw`
+- **Reactive Binding:** Use `observe` keyword for automatic UI updates (e.g., `score: num observe = 0`)
+- **Standalone HTML Build:** Use `build-html` command to export as single HTML file (Web only)
+- **Stdlib & Interactive Input:** Cross-platform modules (`os`, `path`, `net`, `cli`, `gui`)
+- **Smart Auto-Update:** Automatically checks for latest version
+- **Glassmorphism Web IDE:** Beautiful Monaco Editor with syntax highlighting
+- **Interactive Security:** Deno-style security model
 
 ## 📦 Installation (Standalone Executables)
 
@@ -35,6 +39,31 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 ```
 *(Alternatively, you can still use `install.bat` or download `denner-win-x64.exe` directly from the Releases page.)*
 
+## 🖥️ SDL2 Installation (for GUI apps)
+
+To run GUI programs (`gui.setup`, etc.) natively, you need the SDL2 library.
+
+### macOS
+```bash
+brew install sdl2 sdl2_image sdl2_ttf
+```
+
+### Linux (Ubuntu/Debian)
+```bash
+sudo apt update
+sudo apt install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev g++
+```
+
+### Windows
+1. Download Development Libraries from [SDL2 Official](https://github.com/libsdl-org/SDL/releases)
+2. Extract to `C:\SDL2`
+3. Place `include` and `lib` folders in appropriate paths
+
+Or use vcpkg:
+```powershell
+vcpkg install sdl2 sdl2-image sdl2-ttf:x64-windows
+```
+
 ## 💻 CLI Usage
 
 Denner's CLI is designed to be intuitive and secure. 
@@ -45,46 +74,70 @@ denner
 
 # Run a script directly from GitHub
 denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/main_test.den
+
+# Compile to native executable (uses SDL2)
+denner compile game.den -o game
+./game
+
+# Export to HTML for web
+denner build-html game.den -o game.html
 ```
 
-# Hello World (Classic)
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den`
+## Test Files
 
-# Language Feature Demo
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/features_demo.den`
+| File | Description | Command |
+|------|-------------|---------|
+| `hello_world.den` | Hello World | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/hello_world.den` |
+| `variables.den` | Variables & Types | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/variables.den` |
+| `functions.den` | Functions | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/functions.den` |
+| `control_flow.den` | Control Flow | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/control_flow.den` |
+| `classes.den` | Classes (OOP) | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/classes.den` |
+| `stdlib.den` | Standard Library | `denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/stdlib.den` |
+| `gui_basic.den` | GUI Basics (SDL2) | `denner compile https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/gui_basic.den -o gui && ./gui` |
+| `gui_game.den` | Game Demo (SDL2) | `denner compile https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/gui_game.den -o game && ./game` |
 
-# Network Capability Test (Requires -N flag)
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/system_test.den -N`
+## Feature Examples
 
-# 2D Physics & Reactivity Demo
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/physics_demo.den`
+### 2D Game (Native/SDL2)
+```denner
+gui.setup(800, 600)
 
-# Shooting Game Demo
-`denner run https://raw.githubusercontent.com/rits1019c1/denner_tests/refs/heads/main/shooting_game.den`n`
+box = gui.rect(100, 100, 50, 50, "#ff0000")
 
-# Run a local script safely
-`denner run main.den`
+loop = true
+while loop {
+    gui.clear("#000000")
+    gui.draw(box)
+    loop = gui.loop()
+}
+```
 
-## 🚀 Feature Code Examples
+### 2D Game + Physics (Web/HTML only)
+```denner
+box = gui.rect(100, 100, 50, 50, "#ff0000")
+box.enablePhysics({ gravity: 9.8 })
 
-### Reactivity (Auto-UI Updates)
+box.on("collision", function(other) {
+    log.print("Hit!")
+})
+```
+
+### Reactivity (Web only)
 ```denner
 score: num observe = 0
-// Just update the variable, and the HTML badge updates automatically!
 score = score + 1
 ```
 
-### Physics Engine
-```denner
-box = gui.rect(100, 100, 50, 50, "#ff0000")
-// Apply gravity
-box.enablePhysics({ gravity: 9.8 })
+## 📊 Backend Comparison
 
-// Collision event listener
-box.on("collision", function(other) {
-    log.print("Hit the floor!")
-})
-```
+| Feature | C++ (SDL2) | HTML/Web |
+|---------|------------|----------|
+| Speed | Ultra fast | Fast |
+| Offline | ✓ | ✓ |
+| Sharing | Binary distribution | Single HTML file |
+| Physics | Coming soon | ✓ |
+| Reactive binding | Coming soon | ✓ |
+| GUI rendering | `gui.draw()` | Automatic |
 
 ### 🔓 Permission Management (Deno-style)
 Denner prioritizes security. If a script requires network or filesystem access, you must explicitly grant it via flags or interactive prompts:
@@ -97,19 +150,15 @@ denner run main.den -A
 ```
 
 ### Smart Auto-Updater
-Denner comes with a built-in smart updater. It checks the GitHub Releases API and pulls down the newest executable only if you are out of date:
+Denner comes with a built-in smart updater:
 ```bash
 denner update
 ```
 
 ## 🌐 Denner Vanilla Playground
-Denner includes a beautiful, zero-build highly optimized Vanilla Web IDE. It uses a custom asynchronous JavaScript transpiler to securely emulate Denner's `net.get`, `cli.input`, and `gui.alert` standard libraries right inside your browser!
+Denner includes a beautiful, zero-build optimized Vanilla Web IDE.
 
 **[🚀 Try the Browser Edition here](https://rits1019c1.github.io/denner_web/)**
-*(Source code managed in [this repository](https://github.com/rits1019c1/denner_web))*
-
-- Includes a built-in **Syntax Wiki** with English & Japanese (`wiki.html`).
-- **Offline-ready** and perfect for GitHub Pages!
 
 ## 📁 Project Architecture
 
@@ -119,18 +168,18 @@ denner/
 ├── install.ps1           # Global CLI Installer (Windows PowerShell)
 ├── install.bat           # Global CLI Installer (Windows Legacy)
 ├── bin/                  # Pre-compiled standalone native executables (pkg)
-├── tests/                # 🧪 Automated Test Suite for Lexer, Parser, & C++
+├── tests/                # 🧪 Automated Test Suite
 │
-├── src/                  # 💻 Denner Compiler Core (The Toolchain)
-│   ├── index.ts          # CLI Entrypoint (denner run, update, compile)
-│   ├── resolver/         # Dependency resolution engine
-│   └── compiler/         # The Compilation Engine
+├── src/                  # 💻 Denner Compiler Core
+│   ├── index.ts          # CLI Entrypoint
+│   ├── resolver/         # Dependency resolution
+│   └── compiler/        # Compilation Engine
 │
 └── denner-vanilla/       # 🌐 Denner Web Playground
-    ├── index.html        # Beautiful Glassmorphism Web IDE
-    ├── about.html        # 📒 Official Introduction & Get Started Guide
-    ├── wiki.html         # 📚 Syntax Reference (EN/JA Toggle)
-    └── denner-compiler.js# Bundled browser JS transpiler
+    ├── index.html        # Web IDE
+    ├── about.html        # Documentation
+    ├── wiki.html         # Syntax Reference
+    └── denner-compiler.js# Browser JS transpiler
 ```
 
 ## 📜 License

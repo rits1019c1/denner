@@ -44,6 +44,9 @@ export class Parser {
     if (this.match(TokenType.WHILE)) {
       return this.parseWhileStatement();
     }
+    if (this.match(TokenType.CLASS)) {
+      return this.parseClassDeclaration();
+    }
 
     // We disambiguate Variable Declaration from Assignment
     if (this.check(TokenType.IDENTIFIER)) {
@@ -101,10 +104,10 @@ export class Parser {
       do {
         const paramId = this.consume(TokenType.IDENTIFIER, "Expected parameter name.");
         this.consume(TokenType.COLON, "Expected ':' after parameter name.");
-        const typeToken = this.advance(); // TYPE_NUM etc
+        const typeToken = this.advance();
         params.push({
           id: { type: 'Identifier', name: paramId.value, line: paramId.line },
-          typeAnnotation: this.getTypeString(typeToken.type)
+          typeAnnotation: this.getTypeString(typeToken)
         });
       } while (this.match(TokenType.COMMA));
     }
@@ -113,7 +116,7 @@ export class Parser {
     let returnType = 'void';
     if (this.match(TokenType.COLON)) {
       const typeToken = this.advance();
-      returnType = this.getTypeString(typeToken.type);
+      returnType = this.getTypeString(typeToken);
     }
 
     const body = this.parseBlock();
@@ -135,7 +138,7 @@ export class Parser {
 
     if (this.match(TokenType.COLON)) {
       const typeToken = this.advance();
-      typeAnnotation = this.getTypeString(typeToken.type);
+      typeAnnotation = this.getTypeString(typeToken);
     }
 
     let isObserved = false;
@@ -433,6 +436,8 @@ export class Parser {
         return { type: 'BooleanLiteral', value: token.value === 'true', line: token.line };
       case TokenType.IDENTIFIER:
         return { type: 'Identifier', name: token.value, line: token.line };
+      case TokenType.THIS:
+        return { type: 'Identifier', name: 'this', line: token.line };
       case TokenType.LPAREN:
         const expr = this.parseExpression();
         this.consume(TokenType.RPAREN, "Expected ')' after expression.");
@@ -463,7 +468,7 @@ export class Parser {
         const id = this.consume(TokenType.IDENTIFIER, "Expected parameter name.");
         let typeAnnotation = 'any';
         if (this.match(TokenType.COLON)) {
-           typeAnnotation = this.getTypeString(this.advance().type);
+           typeAnnotation = this.getTypeString(this.advance());
         }
         params.push({ id: { type: 'Identifier', name: id.value, line: id.line }, typeAnnotation });
       } while (this.match(TokenType.COMMA));
@@ -472,7 +477,7 @@ export class Parser {
     
     let returnType = 'void';
     if (this.match(TokenType.COLON)) {
-      returnType = this.getTypeString(this.advance().type);
+      returnType = this.getTypeString(this.advance());
     }
     
     const body = this.parseBlock();
@@ -600,15 +605,85 @@ export class Parser {
     return new Error(`[Line ${token.line}] Error at '${token.value}': ${message}`);
   }
 
-  private getTypeString(type: TokenType): string {
-    switch (type) {
+  private getTypeString(token: Token): string {
+    switch (token.type) {
       case TokenType.TYPE_NUM: return 'num';
       case TokenType.TYPE_STR: return 'str';
       case TokenType.TYPE_BOOL: return 'bool';
       case TokenType.TYPE_LIST: return 'list';
       case TokenType.TYPE_OBJ: return 'obj';
+      case TokenType.IDENTIFIER: return token.value;
       default:
-        throw new Error(`Unknown type token: ${type}`);
+        throw new Error(`Unknown type token: ${token.type} at line ${token.line}`);
     }
+  }
+
+  private parseClassDeclaration(): AST.ClassDeclaration {
+    const line = this.previous().line;
+    const id = this.consume(TokenType.IDENTIFIER, "Expected class name.");
+    this.consume(TokenType.LBRACE, "Expected '{' before class body.");
+
+    const members: AST.ClassMember[] = [];
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      while (this.match(TokenType.NEWLINE)); // ignore newlines between members
+      if (this.check(TokenType.RBRACE)) break;
+
+      if (this.match(TokenType.FUNCTION)) {
+        members.push(this.parseClassMethod());
+      } else if (this.check(TokenType.IDENTIFIER)) {
+        members.push(this.parseClassProperty());
+      } else {
+        throw new Error(`Unexpected token in class body: ${this.peek().value} at line ${this.peek().line}`);
+      }
+    }
+
+    this.consume(TokenType.RBRACE, "Expected '}' after class body.");
+    return {
+      type: 'ClassDeclaration',
+      id: { type: 'Identifier', name: id.value, line: id.line },
+      members,
+      line
+    };
+  }
+
+  private parseClassProperty(): AST.ClassProperty {
+    const id = this.consume(TokenType.IDENTIFIER, "Expected property name.");
+    const line = id.line;
+    let typeAnnotation = null;
+
+    if (this.match(TokenType.COLON)) {
+      const typeToken = this.advance();
+      typeAnnotation = this.getTypeString(typeToken);
+    }
+
+    let init = null;
+    if (this.match(TokenType.ASSIGN)) {
+      init = this.parseExpression();
+    }
+    
+    // In class body, properties can end with newline or }
+    if (!this.check(TokenType.RBRACE)) {
+      this.consumeStatementEnd();
+    }
+
+    return {
+      type: 'ClassProperty',
+      id: { type: 'Identifier', name: id.value, line: id.line },
+      typeAnnotation,
+      init,
+      line
+    };
+  }
+
+  private parseClassMethod(): AST.ClassMethod {
+    const decl = this.parseFunctionDeclaration(true);
+    return {
+      type: 'ClassMethod',
+      id: decl.id,
+      params: decl.params,
+      returnType: decl.returnType,
+      body: decl.body,
+      line: decl.line
+    };
   }
 }

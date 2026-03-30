@@ -4,8 +4,15 @@ export class JSCodeGenerator {
   private indentLevel: number = 0;
   private output: string = '';
   public observedVars: Set<string> = new Set();
+  private classNames: Set<string> = new Set();
 
-  constructor(private ast: AST.Program) { }
+  constructor(private ast: AST.Program) {
+    for (const stmt of ast.body) {
+      if (stmt.type === 'ClassDeclaration') {
+        this.classNames.add((stmt as AST.ClassDeclaration).id.name);
+      }
+    }
+  }
 
   public generate(): string {
     for (const stmt of this.ast.body) {
@@ -108,9 +115,33 @@ export class JSCodeGenerator {
         const iterable = this.generateExpression(forIn.iterable);
         this.emit(`for (let ${iter} of ${iterable}) {`);
         this.indent();
-        forIn.body.body.forEach(s => this.generateStatement(s));
+        for (const s of forIn.body.body) this.generateStatement(s);
         this.dedent();
         this.emit(`}`);
+        break;
+      }
+      case 'ClassDeclaration': {
+        const decl = stmt as AST.ClassDeclaration;
+        this.emit(`class ${decl.id.name} {`);
+        this.indent();
+        for (const member of decl.members) {
+          if (member.type === 'ClassProperty') {
+            const prop = member as AST.ClassProperty;
+            const init = prop.init ? ` = ${this.generateExpression(prop.init)}` : '';
+            this.emit(`${prop.id.name}${init};`);
+          } else if (member.type === 'ClassMethod') {
+            const method = member as AST.ClassMethod;
+            const params = method.params.map(p => p.id.name).join(', ');
+            this.emit(`${method.id.name}(${params}) {`);
+            this.indent();
+            for (const s of method.body.body) this.generateStatement(s);
+            this.dedent();
+            this.emit(`}`);
+          }
+        }
+        this.dedent();
+        this.emit(`}`);
+        this.emit('');
         break;
       }
       case 'ReturnStatement': {
@@ -166,6 +197,13 @@ export class JSCodeGenerator {
         const call = expr as AST.CallExpression;
         const args = call.arguments.map((a: AST.Expression) => this.generateExpression(a)).join(', ');
 
+        if (call.callee.type === 'Identifier') {
+          const calleeId = (call.callee as AST.Identifier).name;
+          if (this.classNames.has(calleeId)) {
+            return `new ${calleeId}(${args})`;
+          }
+        }
+
         if (call.callee.type === 'MemberExpression') {
           const mem = call.callee as AST.MemberExpression;
           if (mem.object.type === 'Identifier') {
@@ -182,6 +220,32 @@ export class JSCodeGenerator {
                 return `(await ${callStr})`;
               }
               return callStr;
+            }
+            
+            if (objName === 'string') {
+              const strMethods: Record<string, string> = {
+                'replace': 'denner_string_replace',
+                'split': 'denner_string_split',
+                'trim': 'denner_string_trim',
+                'length': 'denner_string_length',
+                'upper': 'denner_string_upper',
+                'lower': 'denner_string_lower',
+                'startswith': 'denner_string_starts',
+                'endswith': 'denner_string_ends',
+                'includes': 'denner_string_includes',
+                'indexof': 'denner_string_indexof',
+                'substr': 'denner_string_substr',
+                'substring': 'denner_string_substring',
+                'charat': 'denner_string_charat',
+                'repeat': 'denner_string_repeat',
+                'padstart': 'denner_string_padstart',
+                'padend': 'denner_string_padend',
+                'starts': 'denner_string_starts',
+                'ends': 'denner_string_ends'
+              };
+              if (strMethods[propName]) {
+                return `${strMethods[propName]}(${args})`;
+              }
             }
           } else {
               // Method call on an object (e.g. rect.enablePhysics())
@@ -207,6 +271,7 @@ export class JSCodeGenerator {
         const params = func.params.map(p => p.id.name).join(', ');
         const subGen = new JSCodeGenerator({ type: 'Program', body: func.body.body, line: func.line } as any);
         this.observedVars.forEach(v => subGen.observedVars.add(v));
+        this.classNames.forEach(v => subGen.classNames.add(v));
         const body = subGen.generate().split('\n').map(l => '  ' + l).join('\n');
         return `function(${params}) {\n${body}\n}`;
       }

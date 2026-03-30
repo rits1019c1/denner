@@ -41,6 +41,7 @@ function printHelp() {
     console.log('    -A, --allow-all                 Allow all permissions');
     console.log('    -N, --allow-net                 Allow network access');
     console.log('    -F, --allow-fs                  Allow file system access');
+
     console.log('    -o, --output <path>             Specify output path for build-html');
     console.log('    -d, --debug                     Enable debug console in build-html');
     console.log('    -v, --version                   Show version');
@@ -65,7 +66,7 @@ function cleanOldBuilds(buildDir: string) {
                 }
                 count++;
             }
-        } catch (e) {}
+        } catch (e) { }
     }
     if (count > 0) {
         console.log(`\x1b[2m🧹 Automatically cleaned up ${count} old build files.\x1b[0m`);
@@ -78,7 +79,7 @@ function openFile(filePath: string) {
     const opener = isMac ? "open" : isWin ? "start" : "xdg-open";
     try {
         spawnSync(opener, [filePath], { stdio: 'ignore', shell: isWin });
-    } catch (e) {}
+    } catch (e) { }
 }
 
 async function checkForUpdateSilently(): Promise<void> {
@@ -185,7 +186,7 @@ async function startRepl(): Promise<void> {
                 }
             } else {
                 const runResult = spawnSync(binFile, { stdio: 'inherit' });
-                
+
                 if (runResult.status === 0) {
                     for (const stmt of currentAST.body) {
                         if (stmt.type === 'VariableDeclaration' || stmt.type === 'FunctionDeclaration') {
@@ -282,6 +283,12 @@ function generateHtml(jsCode: string, title: string, showDebug: boolean): string
     <script>
         const outputDiv = document.getElementById('console');
         const canvas = document.getElementById('denner-canvas');
+        if (canvas) {
+            try {
+                canvas.setAttribute('tabindex', '0');
+                canvas.addEventListener('click', () => { canvas.focus(); });
+            } catch (e) {}
+        }
         // ctx is declared in outer scope so gui.setup can assign it
         let ctx = null;
         let lastKey = "";
@@ -360,6 +367,8 @@ function generateHtml(jsCode: string, title: string, showDebug: boolean): string
 
         // Key handling
         window.addEventListener('keydown', (e) => {
+            const preventKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
+            if (preventKeys.includes(e.key)) e.preventDefault();
             const map = { "ArrowUp": "Up", "ArrowDown": "Down", "ArrowLeft": "Left", "ArrowRight": "Right", " ": "Space" };
             lastKey = map[e.key] || e.key;
         });
@@ -428,10 +437,31 @@ function generateHtml(jsCode: string, title: string, showDebug: boolean): string
             return l + r;
         };
 
+        const denner_string_replace = (str, find, repl) => String(str).replace(find, repl);
+        const denner_string_split = (str, sep) => String(str).split(sep);
+        const denner_string_trim = (str) => String(str).trim();
+        const denner_string_length = (str) => String(str).length;
+        const denner_string_upper = (str) => String(str).toUpperCase();
+        const denner_string_lower = (str) => String(str).toLowerCase();
+        const denner_string_starts = (str, prefix) => String(str).startsWith(prefix);
+        const denner_string_ends = (str, suffix) => String(str).endsWith(suffix);
+        const denner_string_includes = (str, search) => String(str).includes(search);
+        const denner_string_indexof = (str, search) => String(str).indexOf(search);
+        const denner_string_substr = (str, start, len) => String(str).substr(start, len);
+        const denner_string_substring = (str, start, end) => String(str).substring(start, end);
+        const denner_string_charat = (str, i) => String(str).charAt(i);
+        const denner_string_repeat = (str, n) => String(str).repeat(n);
+        const denner_string_padstart = (str, len, ch) => String(str).padStart(len, ch);
+        const denner_string_padend = (str, len, ch) => String(str).padEnd(len, ch);
+
         // Run the Denner program using async Function to support await at top level
         const code = ${encodedCode};
-        (new Function('denner', 'denner_state', 'denner_system_print', 'denner_add', '"use strict"; return (async function() {' + code + '})();'))(
-            denner, denner_state, denner_system_print, denner_add
+        (new Function('denner', 'denner_state', 'denner_system_print', 'denner_add', 'denner_string_replace', 'denner_string_split', 'denner_string_trim', 'denner_string_length', 'denner_string_upper', 'denner_string_lower', 'denner_string_starts', 'denner_string_ends', 'denner_string_includes', 'denner_string_indexof', 'denner_string_substr', 'denner_string_substring', 'denner_string_charat', 'denner_string_repeat', 'denner_string_padstart', 'denner_string_padend', '"use strict"; return (async function() {' + code + '})();'))(
+            denner, denner_state, denner_system_print, denner_add,
+            denner_string_replace, denner_string_split, denner_string_trim, denner_string_length,
+            denner_string_upper, denner_string_lower, denner_string_starts, denner_string_ends,
+            denner_string_includes, denner_string_indexof, denner_string_substr, denner_string_substring,
+            denner_string_charat, denner_string_repeat, denner_string_padstart, denner_string_padend
         ).catch(e => {
             denner_system_print("Runtime Error: " + e.message);
             console.error(e);
@@ -497,151 +527,152 @@ async function performUpdate(): Promise<void> {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+    const args = process.argv.slice(2);
 
-  if (args.length < 1) {
-    if (process.stdin.isTTY) {
-        checkForUpdateSilently();
-        await startRepl();
-        return;
-    } else {
+    if (args.length < 1) {
+        if (process.stdin.isTTY) {
+            checkForUpdateSilently();
+            await startRepl();
+            return;
+        } else {
+            process.exit(0);
+        }
+    }
+
+    const buildDir = path.join(process.cwd(), '.denner_build');
+    cleanOldBuilds(buildDir);
+
+    const command = args[0];
+
+    if (command === '--version' || command === '-v') {
+        console.log(`Denner CLI v${DENNER_VERSION}`);
         process.exit(0);
     }
-  }
 
-  const buildDir = path.join(process.cwd(), '.denner_build');
-  cleanOldBuilds(buildDir);
+    if (command === '--help' || command === '-h' || command === 'help') {
+        printHelp();
+        process.exit(0);
+    }
 
-  const command = args[0];
+    if (command === 'update' || command === 'upgrade') {
+        await performUpdate();
+        return;
+    }
 
-  if (command === '--version' || command === '-v') {
-      console.log(`Denner CLI v${DENNER_VERSION}`);
-      process.exit(0);
-  }
+    if (command === 'clean') {
+        if (fs.existsSync(buildDir)) {
+            fs.rmSync(buildDir, { recursive: true });
+            console.log(`✅ Cleaned build directory: ${buildDir}`);
+        } else {
+            console.log("Build directory already clean.");
+        }
+        process.exit(0);
+    }
 
-  if (command === '--help' || command === '-h' || command === 'help') {
-      printHelp();
-      process.exit(0);
-  }
+    checkForUpdateSilently();
 
-  if (command === 'update' || command === 'upgrade') {
-      await performUpdate();
-      return;
-  }
+    if (args.length < 2) {
+        console.error('Error: Missing <file> argument.');
+        process.exit(1);
+    }
 
-  if (command === 'clean') {
-      if (fs.existsSync(buildDir)) {
-          fs.rmSync(buildDir, { recursive: true });
-          console.log(`✅ Cleaned build directory: ${buildDir}`);
-      } else {
-          console.log("Build directory already clean.");
-      }
-      process.exit(0);
-  }
+    const fileName = args[1];
+    let customOutPath: string | null = null;
+    let debugMode = false;
 
-  checkForUpdateSilently();
+    for (let i = 2; i < args.length; i++) {
+        if ((args[i] === '-o' || args[i] === '--output') && args[i + 1]) {
+            customOutPath = args[i + 1];
+            i++;
+        } else if (args[i] === '-d' || args[i] === '--debug') {
+            debugMode = true;
+        }
+    }
 
-  if (args.length < 2) {
-      console.error('Error: Missing <file> argument.');
-      process.exit(1);
-  }
+    try {
+        const resolver = new Resolver();
+        await resolver.resolve(fileName);
 
-  const fileName = args[1];
-  let customOutPath: string | null = null;
-  let debugMode = false;
-  
-  for (let i = 2; i < args.length; i++) {
-      if ((args[i] === '-o' || args[i] === '--output') && args[i+1]) {
-          customOutPath = args[i+1];
-          i++;
-      } else if (args[i] === '-d' || args[i] === '--debug') {
-          debugMode = true;
-      }
-  }
+        let fullSource = '';
+        for (const [modPath, source] of resolver.modules.entries()) {
+            fullSource += `\n// --- module: ${modPath} ---\n`;
+            fullSource += source;
+        }
 
-  try {
-     const resolver = new Resolver();
-     await resolver.resolve(fileName);
+        const tokens = new Lexer(fullSource).tokenize();
+        const parser = new Parser(tokens);
+        const ast = parser.parse();
 
-     let fullSource = '';
-     for (const [modPath, source] of resolver.modules.entries()) {
-         fullSource += `\n// --- module: ${modPath} ---\n`;
-         fullSource += source;
-     }
+        const typechecker = new TypeChecker(ast);
+        typechecker.check();
 
-     const tokens = new Lexer(fullSource).tokenize();
-     const parser = new Parser(tokens);
-     const ast = parser.parse();
+        if (command === 'build-html') {
+            if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
+            const jsCodegen = new JSCodeGenerator(ast);
+            const jsOutput = jsCodegen.generate();
+            const htmlOutput = generateHtml(jsOutput, path.basename(fileName), debugMode);
 
-     const typechecker = new TypeChecker(ast);
-     typechecker.check();
+            const outPath = customOutPath || path.join(buildDir, path.basename(fileName).replace(/\.den$/, '') + '.html');
+            fs.writeFileSync(outPath, htmlOutput);
+            console.log(`✨ Standalone HTML game generated: ${outPath}`);
+            if (debugMode) console.log(`\x1b[2m🐞 Debug mode enabled: Side console visible.\x1b[0m`);
 
-     if (command === 'build-html') {
-         if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
-         const jsCodegen = new JSCodeGenerator(ast);
-         const jsOutput = jsCodegen.generate();
-         const htmlOutput = generateHtml(jsOutput, path.basename(fileName), debugMode);
-         
-         const outPath = customOutPath || path.join(buildDir, path.basename(fileName).replace(/\.den$/, '') + '.html');
-         fs.writeFileSync(outPath, htmlOutput);
-         console.log(`✨ Standalone HTML game generated: ${outPath}`);
-         if (debugMode) console.log(`\x1b[2m🐞 Debug mode enabled: Side console visible.\x1b[0m`);
-         
-         openFile(outPath);
-         return;
-     }
+            openFile(outPath);
+            return;
+        }
 
-     if (command === 'run' || command === 'compile') {
-          if (detectGuiUsage(ast)) {
-              console.log(`\x1b[33m🎨 GUI usage detected.\x1b[0m Native CLI rendering is limited.`);
-              const build = await promptUser(`Do you want to build and open an HTML version instead? [y/N] `);
-              if (build) {
-                  const jsCodegen = new JSCodeGenerator(ast);
-                  const jsOutput = jsCodegen.generate();
-                  const htmlOutput = generateHtml(jsOutput, path.basename(fileName), debugMode);
-                  const outPath = path.join(buildDir, path.basename(fileName).replace(/\.den$/, '') + '.html');
-                  if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
-                  fs.writeFileSync(outPath, htmlOutput);
-                  console.log(`✨ Standalone HTML generated and opened: ${outPath}`);
-                  openFile(outPath);
-                  return;
-              }
-          }
-      }
+        if (command === 'run' || command === 'compile') {
+            if (detectGuiUsage(ast)) {
+                console.log(`\x1b[33m🎨 GUI usage detected.\x1b[0m Compiling with SDL2 (C++).`);
+            }
 
-     const codegen = new CodeGenerator(ast);
-     const cppSource = codegen.generate();
+            const codegen = new CodeGenerator(ast);
+            const cppSource = codegen.generate();
 
-     if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
+            if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
 
-     const cppFile = path.join(buildDir, 'main.cpp');
-     const binFile = path.join(buildDir, 'main');
-     
-     fs.writeFileSync(cppFile, cppSource);
+            const cppFile = path.join(buildDir, 'main.cpp');
+            const binFile = path.join(buildDir, 'main');
 
-     const compileResult = spawnSync('g++', [cppFile, '-o', binFile, '-std=c++14'], { stdio: 'inherit' });
-     if (compileResult.status !== 0) {
-         console.error("\x1b[31mError:\x1b[0m C++ Compilation failed.");
-         process.exit(1);
-     }
+            fs.writeFileSync(cppFile, cppSource);
 
-     if (command === 'run') {
-         const runResult = spawnSync(binFile, { stdio: 'inherit' });
-         process.exit(runResult.status ?? 0);
-     } else if (command === 'compile') {
-         const baseFileName = path.basename(fileName).replace(/\.den$/, '');
-         const outName = customOutPath || baseFileName;
-         fs.copyFileSync(binFile, outName);
-         console.log(`✨ Compiled successfully: ${baseFileName} -> ${outName}`);
-         return;
-     } else {
-         console.error(`Unknown command: ${command}`);
-         process.exit(1);
-     }
-  } catch (err: any) {
-     console.error(err.message);
-     process.exit(1);
-  }
+let compileArgs = [cppFile, '-o', binFile, '-std=c++14'];
+            if (detectGuiUsage(ast)) {
+                const platform = process.platform;
+                let sdlFlags: string[];
+                if (platform === 'darwin') {
+                    sdlFlags = ['-I/opt/homebrew/include', '-L/opt/homebrew/lib', '-lSDL2', '-lSDL2_image', '-lSDL2_ttf', '-lpthread'];
+                } else if (platform === 'win32') {
+                    sdlFlags = ['-IC:\\SDL2\\include', '-LC:\\SDL2\\lib', '-lSDL2', '-lSDL2main', '-lSDL2_image', '-lSDL2_ttf'];
+                } else {
+                    sdlFlags = ['-lSDL2', '-lSDL2_image', '-lSDL2_ttf', '-lpthread'];
+                }
+                compileArgs.splice(1, 0, ...sdlFlags);
+            }
+            const compileResult = spawnSync('g++', compileArgs, { stdio: 'inherit' });
+            if (compileResult.status !== 0) {
+                console.error("\x1b[31mError:\x1b[0m C++ Compilation failed.");
+                process.exit(1);
+            }
+
+            if (command === 'run') {
+                const runResult = spawnSync(binFile, { stdio: 'inherit' });
+                process.exit(runResult.status ?? 0);
+            } else if (command === 'compile') {
+                const baseFileName = path.basename(fileName).replace(/\.den$/, '');
+                const outName = customOutPath || baseFileName;
+                fs.copyFileSync(binFile, outName);
+                console.log(`✨ Compiled successfully: ${baseFileName} -> ${outName}`);
+                return;
+            }
+        } else {
+            console.error(`Unknown command: ${command}`);
+            process.exit(1);
+        }
+    } catch (err: any) {
+        console.error(err.message);
+        process.exit(1);
+    }
 }
 
 main();

@@ -12,21 +12,32 @@ interface Env {
   functions: Map<string, { returnType: string; params: string[] }>;
 }
 
+interface ClassEntry {
+  id: string;
+  properties: Map<string, string>;
+  methods: Map<string, { returnType: string; params: string[] }>;
+}
+
 export class TypeChecker {
   private ast: AST.Program;
   private currentEnv: Env;
+  private classes: Map<string, ClassEntry> = new Map();
 
   constructor(ast: AST.Program) {
     this.ast = ast;
     // Base environment with built-ins
     this.currentEnv = {
-      variables: new Map(),
+      variables: new Map([
+        ['log', 'builtin'],
+        ['gui', 'builtin'],
+        ['os', 'builtin'],
+        ['path', 'builtin'],
+        ['net', 'builtin'],
+        ['cli', 'builtin'],
+        ['string', 'builtin']
+      ]),
       functions: new Map()
     };
-
-    // Add log.print pseudo-built-in for now or handle via object resolution later
-    // In our simplified version, log is an object maybe? Or we just special case "log.print"
-    // Let's add a log "module" to variables that returns special types if needed, but for now we skip strict checking on `log.print`.
   }
 
   public check() {
@@ -90,6 +101,9 @@ export class TypeChecker {
         const decl = (stmt as AST.ExportStatement).declaration;
         const paramTypes = decl.params.map(p => p.typeAnnotation);
         this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
+      } else if (stmt.type === 'ClassDeclaration') {
+        const decl = stmt as AST.ClassDeclaration;
+        this.registerClass(decl);
       }
     }
 
@@ -99,6 +113,8 @@ export class TypeChecker {
         this.checkFunctionDeclarationBody(stmt as AST.FunctionDeclaration);
       } else if (stmt.type === 'ExportStatement') {
         this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
+      } else if (stmt.type === 'ClassDeclaration') {
+        this.checkClassDeclaration(stmt as AST.ClassDeclaration);
       } else {
         this.checkStatement(stmt, null); // Top level has no expected return
       }
@@ -148,6 +164,10 @@ export class TypeChecker {
         break;
       case 'ForInStatement':
         // Simplified check
+        break;
+      case 'ClassDeclaration':
+        this.checkClassDeclaration(stmt as AST.ClassDeclaration);
+        break;
         const forIn = stmt as AST.ForInStatement;
         const iterType = this.checkExpression(forIn.iterable);
         // Lists/Objects handling: in denner, arrays give items (type any), objects give keys (str).
@@ -237,11 +257,14 @@ export class TypeChecker {
         const mem = expr as AST.MemberExpression;
         if (mem.object.type === 'Identifier') {
             const name = (mem.object as AST.Identifier).name;
-            if (['log', 'gui', 'os', 'path', 'net', 'cli'].includes(name)) {
+            if (['log', 'gui', 'os', 'path', 'net', 'cli', 'string'].includes(name)) {
                 return 'builtin';
             }
         }
         const objType = this.checkExpression(mem.object);
+        if (objType === 'builtin') {
+            return 'builtin';
+        }
         if (objType === 'gui_object') {
             return 'gui_method';
         }
@@ -390,14 +413,83 @@ export class TypeChecker {
           }
         }
 
+        const objType = this.checkExpression(mem.object);
+        if (this.classes.has(objType)) {
+          const entry = this.classes.get(objType)!;
+          if (entry.properties.has(propName)) return entry.properties.get(propName)!;
+          if (entry.methods.has(propName)) return entry.methods.get(propName)!.returnType;
+          throw new TypeError(`Property '${propName}' does not exist on class '${objType}'.`, mem.line);
+        }
+
         if (objName === 'cli') {
           if (propName === 'get_key') {
             return 'str';
+          }
+        }
+
+        if (objName === 'string') {
+          const strMethods = ['replace', 'split', 'trim', 'length', 'upper', 'lower', 'startswith', 'endswith', 'includes', 'indexof', 'substr', 'substring', 'charat', 'repeat', 'padstart', 'padend', 'starts', 'ends'];
+          if (strMethods.includes(propName)) {
+            expr.arguments.forEach(arg => this.checkExpression(arg));
+            return propName === 'length' ? 'num' : 'str';
           }
         }
       }
     }
 
     return 'unknown';
+  }
+
+  private registerClass(node: AST.ClassDeclaration) {
+    if (this.classes.has(node.id.name)) {
+      throw new TypeError(`Class '${node.id.name}' is already defined.`, node.line);
+    }
+    const entry: ClassEntry = {
+      id: node.id.name,
+      properties: new Map(),
+      methods: new Map()
+    };
+    for (const member of node.members) {
+      if (member.type === 'ClassProperty') {
+        const prop = member as AST.ClassProperty;
+        entry.properties.set(prop.id.name, prop.typeAnnotation || 'unknown');
+      } else if (member.type === 'ClassMethod') {
+        const method = member as AST.ClassMethod;
+        entry.methods.set(method.id.name, {
+          returnType: method.returnType,
+          params: method.params.map(p => p.typeAnnotation)
+        });
+      }
+    }
+    this.classes.set(node.id.name, entry);
+    // Also define class name as a function for constructor calls
+    const constructor = entry.methods.get('constructor');
+    this.defineFunc(node.id.name, node.id.name, constructor ? constructor.params : [], node.line);
+  }
+
+  private checkClassDeclaration(node: AST.ClassDeclaration) {
+    for (const member of node.members) {
+      if (member.type === 'ClassMethod') {
+        this.checkClassMethodBody(member as AST.ClassMethod, node.id.name);
+      } else if (member.type === 'ClassProperty') {
+        const prop = member as AST.ClassProperty;
+        if (prop.init) {
+          const initType = this.checkExpression(prop.init);
+          if (prop.typeAnnotation && initType !== prop.typeAnnotation && initType !== 'unknown') {
+            throw new TypeError(`Property '${prop.id.name}' initialization type mismatch. Expected ${prop.typeAnnotation}, got ${initType}.`, prop.line);
+          }
+        }
+      }
+    }
+  }
+
+  private checkClassMethodBody(node: AST.ClassMethod, className: string) {
+    this.pushEnv();
+    this.defineVar('this', className, node.line);
+    for (const param of node.params) {
+      this.defineVar(param.id.name, param.typeAnnotation, node.line);
+    }
+    this.checkStatement(node.body, node.returnType);
+    this.popEnv();
   }
 }

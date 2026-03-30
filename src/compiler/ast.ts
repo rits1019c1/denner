@@ -11,6 +11,9 @@ export type NodeType =
   | 'ImportStatement'
   | 'ExportStatement'
   | 'WhileStatement'
+  | 'ClassDeclaration'
+  | 'ClassProperty'
+  | 'ClassMethod'
   // Expressions
   | 'BinaryExpression'
   | 'Identifier'
@@ -46,7 +49,8 @@ export type Statement =
   | ReturnStatement
   | ImportStatement
   | ExportStatement
-  | WhileStatement;
+  | WhileStatement
+  | ClassDeclaration;
 
 export type Expression =
   | BinaryExpression
@@ -210,4 +214,27 @@ export interface UnaryExpression extends BaseNode {
   type: 'UnaryExpression';
   operator: string;
   argument: Expression;
+}
+
+export interface ClassDeclaration extends BaseNode {
+  type: 'ClassDeclaration';
+  id: Identifier;
+  members: ClassMember[];
+}
+
+export type ClassMember = ClassProperty | ClassMethod;
+
+export interface ClassProperty extends BaseNode {
+  type: 'ClassProperty';
+  id: Identifier;
+  typeAnnotation: string | null;
+  init: Expression | null;
+}
+
+export interface ClassMethod extends BaseNode {
+  type: 'ClassMethod';
+  id: Identifier;
+  params: Parameter[];
+  returnType: string;
+  body: BlockStatement;
 }

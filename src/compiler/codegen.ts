@@ -3,8 +3,15 @@ import * as AST from './ast';
 export class CodeGenerator {
   private indentLevel: number = 0;
   private output: string = '';
+  private classNames: Set<string> = new Set();
 
-  constructor(private ast: AST.Program) {}
+  constructor(private ast: AST.Program) {
+    for (const stmt of ast.body) {
+      if (stmt.type === 'ClassDeclaration') {
+        this.classNames.add((stmt as AST.ClassDeclaration).id.name);
+      }
+    }
+  }
 
   private requiredStdlibs = new Set<string>();
 
@@ -15,52 +22,55 @@ export class CodeGenerator {
     this.emit('#include <vector>');
     this.emit('#include <map>');
     if (this.requiredStdlibs.has('os') || this.requiredStdlibs.has('path') || this.requiredStdlibs.has('gui') || this.requiredStdlibs.has('net')) {
-       this.emit('#include <cstdlib>');
+      this.emit('#include <cstdlib>');
     }
     if (this.requiredStdlibs.has('os')) {
-       this.emit('#ifndef _WIN32\n#include <unistd.h>\n#endif');
+      this.emit('#ifndef _WIN32\n#include <unistd.h>\n#endif');
     }
     if (this.requiredStdlibs.has('net')) {
-       this.emit('#include <cstdio>');
-       this.emit('#include <memory>');
-       this.emit('#include <stdexcept>');
-       this.emit('#include <array>');
+      this.emit('#include <cstdio>');
+      this.emit('#include <memory>');
+      this.emit('#include <stdexcept>');
+      this.emit('#include <array>');
     }
     if (this.requiredStdlibs.has('cli')) {
-       this.emit('#ifdef _WIN32\n#include <conio.h>\n#else\n#include <termios.h>\n#include <unistd.h>\n#endif');
+      this.emit('#ifdef _WIN32\n#include <conio.h>\n#else\n#include <termios.h>\n#include <unistd.h>\n#endif');
     }
-    
+
     this.emit('');
     this.emit('using namespace std;');
     this.emit('');
-    
+
     this.emitStdlibStubs();
 
     // Pre-declare functions so they can call each other
     for (const stmt of this.ast.body) {
       if (stmt.type === 'FunctionDeclaration') {
-         this.emitFunctionForwardDeclaration(stmt as AST.FunctionDeclaration);
+        this.emitFunctionForwardDeclaration(stmt as AST.FunctionDeclaration);
       } else if (stmt.type === 'ExportStatement') {
-         this.emitFunctionForwardDeclaration((stmt as AST.ExportStatement).declaration);
+        this.emitFunctionForwardDeclaration((stmt as AST.ExportStatement).declaration);
       }
     }
     this.emit('');
 
     // First, emit all functions
     for (const stmt of this.ast.body) {
-       if (stmt.type === 'FunctionDeclaration') {
-          this.generateStatement(stmt);
-       } else if (stmt.type === 'ExportStatement') {
-          this.generateStatement((stmt as AST.ExportStatement).declaration);
-       }
+      if (stmt.type === 'FunctionDeclaration') {
+        this.generateStatement(stmt);
+      } else if (stmt.type === 'ExportStatement') {
+        this.generateStatement((stmt as AST.ExportStatement).declaration);
+      }
     }
-    
+
     this.emit('int main() {');
     this.indent();
     for (const stmt of this.ast.body) {
-       if (stmt.type !== 'FunctionDeclaration' && stmt.type !== 'ExportStatement' && stmt.type !== 'ImportStatement') {
-          this.generateStatement(stmt);
-       }
+      if (stmt.type !== 'FunctionDeclaration' && stmt.type !== 'ExportStatement' && stmt.type !== 'ImportStatement') {
+        this.generateStatement(stmt);
+      }
+    }
+    if (this.requiredStdlibs.has('gui')) {
+      this.emit('denner_gui_cleanup();');
     }
     this.emit('return 0;');
     this.dedent();
@@ -75,9 +85,9 @@ export class CodeGenerator {
       node.forEach(n => this.identifyStdlibs(n));
     } else if (typeof node === 'object') {
       if (node.type === 'MemberExpression' && node.object?.type === 'Identifier') {
-         if (['os', 'path', 'net', 'cli', 'gui'].includes(node.object.name)) {
-            this.requiredStdlibs.add(node.object.name);
-         }
+        if (['os', 'path', 'net', 'cli', 'gui'].includes(node.object.name)) {
+          this.requiredStdlibs.add(node.object.name);
+        }
       }
       Object.values(node).forEach(v => this.identifyStdlibs(v));
     }
@@ -85,88 +95,203 @@ export class CodeGenerator {
 
   private emitStdlibStubs() {
     if (this.requiredStdlibs.has('os')) {
-       this.emit('string denner_os_name() {');
-       this.emit('#ifdef _WIN32\n    return "windows";\n#elif __APPLE__\n    return "macos";\n#elif __linux__\n    return "linux";\n#else\n    return "unknown";\n#endif\n}');
-       this.emit('string denner_os_env(string key) {');
-       this.emit('    if (const char* env_p = std::getenv(key.c_str())) return string(env_p);');
-       this.emit('    return "";\n}');
-       this.emit('string denner_os_cwd() {');
-       this.emit('    char buf[4096];');
-       this.emit('#ifdef _WIN32\n    return string(_getcwd(buf, sizeof(buf)) ? buf : ".");\n#else\n    return string(getcwd(buf, sizeof(buf)) ? buf : ".");\n#endif\n}');
+      this.emit('string denner_os_name() {');
+      this.emit('#ifdef _WIN32\n    return "windows";\n#elif __APPLE__\n    return "macos";\n#elif __linux__\n    return "linux";\n#else\n    return "unknown";\n#endif\n}');
+      this.emit('string denner_os_env(string key) {');
+      this.emit('    if (const char* env_p = std::getenv(key.c_str())) return string(env_p);');
+      this.emit('    return "";\n}');
+      this.emit('string denner_os_cwd() {');
+      this.emit('    char buf[4096];');
+      this.emit('#ifdef _WIN32\n    return string(_getcwd(buf, sizeof(buf)) ? buf : ".");\n#else\n    return string(getcwd(buf, sizeof(buf)) ? buf : ".");\n#endif\n}');
     }
     if (this.requiredStdlibs.has('path')) {
-       this.emit('string denner_path_join(string a, string b) {');
-       this.emit('    string sep = "/";');
-       this.emit('#ifdef _WIN32\n    sep = "\\\\";\n#endif');
-       this.emit('    if (a.empty()) return b;');
-       this.emit('    if (a.back() == sep[0]) return a + b;');
-       this.emit('    return a + sep + b;\n}');
+      this.emit('string denner_path_join(string a, string b) {');
+      this.emit('    string sep = "/";');
+      this.emit('#ifdef _WIN32\n    sep = "\\\\";\n#endif');
+      this.emit('    if (a.empty()) return b;');
+      this.emit('    if (a.back() == sep[0]) return a + b;');
+      this.emit('    return a + sep + b;\n}');
     }
     if (this.requiredStdlibs.has('cli')) {
-       this.emit('string denner_cli_input(string prompt_text) {');
-       this.emit('    cout << prompt_text;');
-       this.emit('    string val;');
-       this.emit('    getline(cin, val);');
-       this.emit('    return val;\n}');
-       
-       this.emit('string denner_cli_get_key() {');
-       this.emit('#ifdef _WIN32');
-       this.emit('    int ch = _getch();');
-       this.emit('    if (ch == 0 || ch == 224) {');
-       this.emit('        ch = _getch();');
-       this.emit('        if (ch == 72) return "Up";');
-       this.emit('        if (ch == 80) return "Down";');
-       this.emit('        if (ch == 75) return "Left";');
-       this.emit('        if (ch == 77) return "Right";');
-       this.emit('    }');
-       this.emit('    return string(1, (char)ch);');
-       this.emit('#else');
-       this.emit('    struct termios oldt, newt;');
-       this.emit('    tcgetattr(STDIN_FILENO, &oldt);');
-       this.emit('    newt = oldt;');
-       this.emit('    newt.c_lflag &= ~(ICANON | ECHO);');
-       this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &newt);');
-       this.emit('    char buf[3];');
-       this.emit('    int n = read(STDIN_FILENO, buf, 3);');
-       this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);');
-       this.emit('    if (n == 3 && buf[0] == \'\\033\' && buf[1] == \'[\') {');
-       this.emit('        if (buf[2] == \'A\') return "Up";');
-       this.emit('        if (buf[2] == \'B\') return "Down";');
-       this.emit('        if (buf[2] == \'C\') return "Right";');
-       this.emit('        if (buf[2] == \'D\') return "Left";');
-       this.emit('    }');
-       this.emit('    if (n > 0) return string(1, buf[0]);');
-       this.emit('    return "";');
-       this.emit('#endif\n}');
+      this.emit('string denner_cli_input(string prompt_text) {');
+      this.emit('    cout << prompt_text;');
+      this.emit('    string val;');
+      this.emit('    getline(cin, val);');
+      this.emit('    return val;\n}');
+
+      this.emit('string denner_cli_get_key() {');
+      this.emit('#ifdef _WIN32');
+      this.emit('    int ch = _getch();');
+      this.emit('    if (ch == 0 || ch == 224) {');
+      this.emit('        ch = _getch();');
+      this.emit('        if (ch == 72) return "Up";');
+      this.emit('        if (ch == 80) return "Down";');
+      this.emit('        if (ch == 75) return "Left";');
+      this.emit('        if (ch == 77) return "Right";');
+      this.emit('    }');
+      this.emit('    return string(1, (char)ch);');
+      this.emit('#else');
+      this.emit('    struct termios oldt, newt;');
+      this.emit('    tcgetattr(STDIN_FILENO, &oldt);');
+      this.emit('    newt = oldt;');
+      this.emit('    newt.c_lflag &= ~(ICANON | ECHO);');
+      this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &newt);');
+      this.emit('    char buf[3];');
+      this.emit('    int n = read(STDIN_FILENO, buf, 3);');
+      this.emit('    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);');
+      this.emit('    if (n == 3 && buf[0] == \'\\033\' && buf[1] == \'[\') {');
+      this.emit('        if (buf[2] == \'A\') return "Up";');
+      this.emit('        if (buf[2] == \'B\') return "Down";');
+      this.emit('        if (buf[2] == \'C\') return "Right";');
+      this.emit('        if (buf[2] == \'D\') return "Left";');
+      this.emit('    }');
+      this.emit('    if (n > 0) return string(1, buf[0]);');
+      this.emit('    return "";');
+      this.emit('#endif\n}');
     }
     if (this.requiredStdlibs.has('gui')) {
-       this.emit('void denner_gui_alert(string msg) {');
-       this.emit('#ifdef _WIN32');
-       this.emit('    system(("msg * " + msg).c_str());');
-       this.emit('#elif __APPLE__');
-       this.emit('    system(("osascript -e \\"display alert \\\\\\"\" + msg + \"\\\\\\"\\\"").c_str());');
-       this.emit('#else');
-       this.emit('    system(("xmessage \\"" + msg + "\\"").c_str());');
-       this.emit('#endif\n}');
-       this.emit('void denner_gui_setup(double w, double h) {}');
-       this.emit('void denner_gui_clear(string color) {}');
-       this.emit('double denner_gui_rect(double x, double y, double w, double h, string color) { return 0; }');
-       this.emit('double denner_gui_image(string url, double x, double y, double w, double h) { return 0; }');
-       this.emit('void denner_gui_text(string text, double x, double y, string color) {}');
-       this.emit('void denner_gui_loop() {}');
-       this.emit('void denner_gui_enablePhysics(double id, ...) {}');
-       this.emit('void denner_gui_on(double id, string event, ...) {}');
+      this.emit('#include <SDL2/SDL.h>');
+      this.emit('#include <SDL2/SDL_image.h>');
+      this.emit('#include <SDL2/SDL_ttf.h>');
+      this.emit('');
+      this.emit('struct gui_object {');
+      this.emit('    SDL_Rect rect;');
+      this.emit('    SDL_Color color;');
+      this.emit('    SDL_Texture* texture;');
+      this.emit('    bool hasTexture;');
+      this.emit('    gui_object() : texture(nullptr), hasTexture(false) { rect.x = rect.y = rect.w = rect.h = 0; color = {255,255,255,255}; }');
+      this.emit('};');
+      this.emit('');
+      this.emit('SDL_Window* g_window = nullptr;');
+      this.emit('SDL_Renderer* g_renderer = nullptr;');
+      this.emit('TTF_Font* g_font = nullptr;');
+      this.emit('std::map<std::string, SDL_Texture*> g_textureCache;');
+      this.emit('');
+      this.emit('void denner_gui_alert(string msg) {');
+      this.emit('#ifdef _WIN32');
+      this.emit('    system(("msg * " + msg).c_str());');
+      this.emit('#elif __APPLE__');
+      this.emit('    system(("osascript -e \\"display alert \\\\\\"\" + msg + \"\\\\\\"\\\"").c_str());');
+      this.emit('#else');
+      this.emit('    system(("xmessage \\"" + msg + "\\"").c_str());');
+      this.emit('#endif\n}');
+      this.emit('');
+      this.emit('Uint32 parseColor(string colorStr) {');
+      this.emit('    if (colorStr.empty()) return 0xFFFFFFFF;');
+      this.emit('    if (colorStr[0] == \'#\' && colorStr.length() >= 7) {');
+      this.emit('        unsigned int r, g, b;');
+      this.emit('        sscanf(colorStr.c_str() + 1, "%02x%02x%02x", &r, &g, &b);');
+      this.emit('        return (r << 24) | (g << 16) | (b << 8) | 255;');
+      this.emit('    }');
+      this.emit('    return 0xFFFFFFFF;');
+      this.emit('}');
+      this.emit('');
+      this.emit('void denner_gui_setup(double w, double h) {');
+      this.emit('    if (SDL_Init(SDL_INIT_VIDEO) < 0) return;');
+      this.emit('    IMG_Init(IMG_INIT_PNG);');
+      this.emit('    TTF_Init();');
+      this.emit('    g_window = SDL_CreateWindow("Denner Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, (int)w, (int)h, SDL_WINDOW_SHOWN);');
+      this.emit('    g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);');
+      this.emit('#ifdef __APPLE__');
+      this.emit('    g_font = TTF_OpenFont("/System/Library/Fonts/Helvetica.ttc", 18);');
+      this.emit('#elif _WIN32');
+      this.emit('    g_font = TTF_OpenFont("C:\\\\Windows\\\\Fonts\\\\arial.ttf", 18);');
+      this.emit('#else');
+      this.emit('    g_font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18);');
+      this.emit('#endif');
+      this.emit('}');
+      this.emit('');
+      this.emit('void denner_gui_clear(string color) {');
+      this.emit('    if (!g_renderer) return;');
+      this.emit('    Uint32 c = parseColor(color);');
+      this.emit('    Uint8 r = (c >> 24) & 0xFF, g = (c >> 16) & 0xFF, b = (c >> 8) & 0xFF;');
+      this.emit('    SDL_SetRenderDrawColor(g_renderer, r, g, b, 255);');
+      this.emit('    SDL_RenderClear(g_renderer);');
+      this.emit('}');
+      this.emit('');
+      this.emit('gui_object denner_gui_rect(double x, double y, double w, double h, string color) {');
+      this.emit('    gui_object obj;');
+      this.emit('    obj.rect = {(int)x, (int)y, (int)w, (int)h};');
+      this.emit('    obj.color = {(Uint8)((parseColor(color) >> 24) & 0xFF), (Uint8)((parseColor(color) >> 16) & 0xFF), (Uint8)((parseColor(color) >> 8) & 0xFF), 255};');
+      this.emit('    return obj;');
+      this.emit('}');
+      this.emit('');
+      this.emit('gui_object denner_gui_image(string url, double x, double y, double w, double h) {');
+      this.emit('    gui_object obj;');
+      this.emit('    obj.rect = {(int)x, (int)y, (int)w, (int)h};');
+      this.emit('    if (g_textureCache.find(url) != g_textureCache.end()) {');
+      this.emit('        obj.texture = g_textureCache[url];');
+      this.emit('        obj.hasTexture = true;');
+      this.emit('    } else {');
+      this.emit('        SDL_Surface* surf = IMG_Load(url.c_str());');
+      this.emit('        if (surf) {');
+      this.emit('            obj.texture = SDL_CreateTextureFromSurface(g_renderer, surf);');
+      this.emit('            obj.hasTexture = true;');
+      this.emit('            g_textureCache[url] = obj.texture;');
+      this.emit('            SDL_FreeSurface(surf);');
+      this.emit('        }');
+      this.emit('    }');
+      this.emit('    return obj;');
+      this.emit('}');
+      this.emit('');
+      this.emit('void denner_gui_draw_object(gui_object& obj) {');
+      this.emit('    if (!g_renderer) return;');
+      this.emit('    if (obj.hasTexture && obj.texture) {');
+      this.emit('        SDL_RenderCopy(g_renderer, obj.texture, nullptr, &obj.rect);');
+      this.emit('    } else {');
+      this.emit('        SDL_SetRenderDrawColor(g_renderer, obj.color.r, obj.color.g, obj.color.b, obj.color.a);');
+      this.emit('        SDL_RenderFillRect(g_renderer, &obj.rect);');
+      this.emit('    }');
+      this.emit('}');
+      this.emit('void denner_gui_draw(gui_object obj) {');
+      this.emit('    denner_gui_draw_object(obj);');
+      this.emit('}');
+      this.emit('');
+      this.emit('void denner_gui_text(string text, double x, double y, string color) {');
+      this.emit('    if (!g_renderer || !g_font) return;');
+      this.emit('    SDL_Color c = {(Uint8)((parseColor(color) >> 24) & 0xFF), (Uint8)((parseColor(color) >> 16) & 0xFF), (Uint8)((parseColor(color) >> 8) & 0xFF), 255};');
+      this.emit('    SDL_Surface* surf = TTF_RenderUTF8_Blended(g_font, text.c_str(), c);');
+      this.emit('    if (surf) {');
+      this.emit('        SDL_Texture* tex = SDL_CreateTextureFromSurface(g_renderer, surf);');
+      this.emit('        SDL_Rect dst = {(int)x, (int)y, surf->w, surf->h};');
+      this.emit('        SDL_RenderCopy(g_renderer, tex, nullptr, &dst);');
+      this.emit('        SDL_DestroyTexture(tex);');
+      this.emit('        SDL_FreeSurface(surf);');
+      this.emit('    }');
+      this.emit('}');
+      this.emit('');
+      this.emit('bool denner_gui_loop() {');
+      this.emit('    if (!g_renderer) return false;');
+      this.emit('    SDL_RenderPresent(g_renderer);');
+      this.emit('    SDL_Event e;');
+      this.emit('    while (SDL_PollEvent(&e)) {');
+      this.emit('        if (e.type == SDL_QUIT) return false;');
+      this.emit('    }');
+      this.emit('    return true;');
+      this.emit('}');
+      this.emit('');
+      this.emit('void denner_gui_cleanup() {');
+      this.emit('    for (auto& kv : g_textureCache) {');
+      this.emit('        if (kv.second) SDL_DestroyTexture(kv.second);');
+      this.emit('    }');
+      this.emit('    if (g_font) TTF_CloseFont(g_font);');
+      this.emit('    if (g_renderer) SDL_DestroyRenderer(g_renderer);');
+      this.emit('    if (g_window) SDL_DestroyWindow(g_window);');
+      this.emit('    TTF_Quit();');
+      this.emit('    IMG_Quit();');
+      this.emit('    SDL_Quit();');
+      this.emit('}');
     }
     if (this.requiredStdlibs.has('net')) {
-       this.emit('string denner_net_get(string url) {');
-       this.emit('    std::array<char, 128> buffer;');
-       this.emit('    std::string result;');
-       this.emit('    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(("curl -s \\"" + url + "\\"").c_str(), "r"), pclose);');
-       this.emit('    if (!pipe) throw std::runtime_error("popen() failed!");');
-       this.emit('    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {');
-       this.emit('        result += buffer.data();');
-       this.emit('    }');
-       this.emit('    return result;\n}');
+      this.emit('string denner_net_get(string url) {');
+      this.emit('    std::array<char, 128> buffer;');
+      this.emit('    std::string result;');
+      this.emit('    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(("curl -s \\"" + url + "\\"").c_str(), "r"), pclose);');
+      this.emit('    if (!pipe) throw std::runtime_error("popen() failed!");');
+      this.emit('    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {');
+      this.emit('        result += buffer.data();');
+      this.emit('    }');
+      this.emit('    return result;\n}');
     }
 
     // Always emit string concatenation helper for interpolation support
@@ -181,9 +306,9 @@ export class CodeGenerator {
 
   private emit(line: string) {
     if (line === '') {
-       this.output += '\n';
+      this.output += '\n';
     } else {
-       this.output += '    '.repeat(this.indentLevel) + line + '\n';
+      this.output += '    '.repeat(this.indentLevel) + line + '\n';
     }
   }
 
@@ -200,10 +325,11 @@ export class CodeGenerator {
       case 'num': return 'double';
       case 'str': return 'string';
       case 'bool': return 'bool';
-      case 'list': return 'auto'; 
+      case 'list': return 'auto';
       case 'obj': return 'auto';
       case 'void': return 'void';
-      default: return 'auto';
+      case 'unknown': return 'auto';
+      default: return dennerType || 'auto';
     }
   }
 
@@ -247,16 +373,16 @@ export class CodeGenerator {
         this.dedent();
         if (ifStmt.alternate) {
           if (ifStmt.alternate.type === 'IfStatement') {
-             // To properly chain else if without extra newlines, we can handle it specially, but emitting `} else { if { ... } }` is also valid C++.
-             this.emit(`} else {`);
-             this.indent();
-             this.generateStatement(ifStmt.alternate);
-             this.dedent();
+            // To properly chain else if without extra newlines, we can handle it specially, but emitting `} else { if { ... } }` is also valid C++.
+            this.emit(`} else {`);
+            this.indent();
+            this.generateStatement(ifStmt.alternate);
+            this.dedent();
           } else {
-             this.emit(`} else {`);
-             this.indent();
-             (ifStmt.alternate as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
-             this.dedent();
+            this.emit(`} else {`);
+            this.indent();
+            (ifStmt.alternate as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
+            this.dedent();
           }
         }
         this.emit(`}`);
@@ -300,27 +426,56 @@ export class CodeGenerator {
         this.emit(`return ${this.generateExpression(ret.argument)};`);
         break;
       }
+      case 'ClassDeclaration': {
+        const decl = stmt as AST.ClassDeclaration;
+        this.emit(`struct ${decl.id.name} {`);
+        this.indent();
+        for (const member of decl.members) {
+          if (member.type === 'ClassProperty') {
+            const prop = member as AST.ClassProperty;
+            this.emit(`${this.mapType(prop.typeAnnotation)} ${prop.id.name};`);
+          } else if (member.type === 'ClassMethod') {
+            const method = member as AST.ClassMethod;
+            const isConstructor = method.id.name === 'constructor';
+            const returnType = isConstructor ? '' : this.mapType(method.returnType);
+            const name = isConstructor ? decl.id.name : method.id.name;
+            const params = method.params.map(p => `${this.mapType(p.typeAnnotation)} ${p.id.name}`).join(', ');
+            this.emit(`${returnType ? returnType + ' ' : ''}${name}(${params}) {`);
+            this.indent();
+            method.body.body.forEach(s => this.generateStatement(s));
+            this.dedent();
+            this.emit(`}`);
+          }
+        }
+        this.dedent();
+        this.emit(`};`);
+        this.emit('');
+        break;
+      }
       case 'BlockStatement': {
-         this.emit(`{`);
-         this.indent();
-         (stmt as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
-         this.dedent();
-         this.emit(`}`);
-         break;
+        this.emit(`{`);
+        this.indent();
+        (stmt as AST.BlockStatement).body.forEach(s => this.generateStatement(s));
+        this.dedent();
+        this.emit(`}`);
+        break;
       }
       case 'ImportStatement':
-         // Handled by dependency resolver theoretically. For MVP, imports drop out from generated source into #includes or object linking.
-         break;
+        // Handled by dependency resolver theoretically. For MVP, imports drop out from generated source into #includes or object linking.
+        break;
       case 'ExportStatement':
-         // For C++, exporting is basically making it not static / exposed in header. In single-file it's standard.
-         break;
+        // For C++, exporting is basically making it not static / exposed in header. In single-file it's standard.
+        break;
     }
   }
 
   private generateExpression(expr: AST.Expression): string {
     switch (expr.type) {
-      case 'Identifier':
-        return (expr as AST.Identifier).name;
+      case 'Identifier': {
+        const id = (expr as AST.Identifier).name;
+        if (id === 'this') return '(*this)';
+        return id;
+      }
       case 'NumberLiteral':
         return (expr as AST.NumberLiteral).value.toString();
       case 'StringLiteral':
@@ -330,59 +485,64 @@ export class CodeGenerator {
       case 'BinaryExpression': {
         const bin = expr as AST.BinaryExpression;
         if (bin.operator === '+') {
-           return `denner_add(${this.generateExpression(bin.left)}, ${this.generateExpression(bin.right)})`;
+          return `denner_add(${this.generateExpression(bin.left)}, ${this.generateExpression(bin.right)})`;
         }
         return `(${this.generateExpression(bin.left)} ${bin.operator} ${this.generateExpression(bin.right)})`;
       }
       case 'AssignmentExpression': {
         const assign = expr as AST.AssignmentExpression;
         if (assign.left.type === 'Identifier') {
-           const prefix = assign.isDeclaration ? `${this.mapType(assign.declType || null)} ` : '';
-           return `${prefix}${(assign.left as AST.Identifier).name} = ${this.generateExpression(assign.right)}`;
+          const prefix = assign.isDeclaration ? `${this.mapType(assign.declType || null)} ` : '';
+          return `${prefix}${(assign.left as AST.Identifier).name} = ${this.generateExpression(assign.right)}`;
         }
-        // Member assignment in MVP flattened AST
+        // Member assignment
         const mem = assign.left as AST.MemberExpression;
-        return `${mem.property.name} = ${this.generateExpression(assign.right)}`;
+        const obj = this.generateExpression(mem.object);
+        if (obj === '(*this)') {
+          return `this->${mem.property.name} = ${this.generateExpression(assign.right)}`;
+        }
+        return `${obj}.${mem.property.name} = ${this.generateExpression(assign.right)}`;
       }
       case 'CallExpression': {
         const call = expr as AST.CallExpression;
         const args = call.arguments.map(a => this.generateExpression(a)).join(', ');
-        
+
         // Special case log.print
         if (call.callee.type === 'MemberExpression') {
-           const mem = call.callee as AST.MemberExpression;
-           if (mem.object.type === 'Identifier') {
-               const objName = (mem.object as AST.Identifier).name;
-               const propName = mem.property.name;
-               
-               if (objName === 'log' && propName === 'print') {
-                  if (call.arguments.length === 0) return `cout << endl`;
-                  return `cout << ${args} << endl`;
-               }
-               
-               if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
-                  return `denner_${objName}_${propName}(${args})`;
-               }
+          const mem = call.callee as AST.MemberExpression;
+          if (mem.object.type === 'Identifier') {
+            const objName = (mem.object as AST.Identifier).name;
+            const propName = mem.property.name;
 
-               // Simplified: if it's a method call on a variable, assume it's a GUI object for now
-               return `denner_gui_${propName}(${this.generateExpression(mem.object)}${args ? ', ' + args : ''})`;
-           }
+            if (objName === 'log' && propName === 'print') {
+              if (call.arguments.length === 0) return `cout << endl`;
+              return `cout << ${args} << endl`;
+            }
+
+            if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
+              return `denner_${objName}_${propName}(${args})`;
+            }
+
+            // If it's not a known stdlib, it's likely a class instance or a GUI object.
+            // For class instances, we use standard C++ call: obj.method(args)
+            // We'll assume if it's in this.classNames at any point as a type, it's a class.
+            // But for now, let's just make it a standard call and see if it works.
+            const obj = this.generateExpression(mem.object);
+            const op = (obj === '(*this)') ? '->' : '.';
+            const objBase = (obj === '(*this)') ? 'this' : obj;
+            return `${objBase}${op}${propName}(${args})`;
+          }
         }
-        
+
         return `${this.generateExpression(call.callee)}(${args})`;
       }
       case 'ObjectLiteral':
         return 'string("{}")';
       case 'MemberExpression': {
         const mem = expr as AST.MemberExpression;
-        if (mem.object.type === 'Identifier') {
-            const objName = (mem.object as AST.Identifier).name;
-            if (['os', 'path', 'net', 'cli', 'gui'].includes(objName)) {
-                return `denner_${objName}_${mem.property.name}`;
-            }
-        }
-        // Simplified member access for stubs (e.g. player.x)
-        return "0";
+        const obj = this.generateExpression(mem.object);
+        if (obj === '(*this)') return `this->${mem.property.name}`;
+        return obj + '.' + mem.property.name;
       }
       case 'FunctionExpression':
         return "[](){}";
