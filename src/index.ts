@@ -10,7 +10,7 @@ import { JSCodeGenerator } from './compiler/jscodegen';
 import { Interpreter } from './compiler/interpreter';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.6.0';
+const DENNER_VERSION = '1.6.5';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -70,6 +70,8 @@ function printHelp() {
     console.log('    $ denner                       Start interactive REPL');
     console.log('    $ denner run <file|url>         Run a Denner script');
     console.log('    $ denner update                 Update to the latest version');
+    console.log('    $ denner install [version]      Install a specific version (shows menu if omitted)');
+    console.log('    $ denner list                   List all available versions');
     console.log('');
     console.log('  \x1b[1mOPTIONS\x1b[0m');
     console.log('    -v, --version                   Show version');
@@ -205,59 +207,155 @@ function detectGuiUsage(node: any): boolean {
 
 
 
+function getBinaryName(): string {
+    const isWin = process.platform === "win32";
+    const arch = process.arch === "x64" ? "x64" : "arm64";
+    const platform = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "win" : "linux";
+    const ext = isWin ? ".exe" : "";
+    return `denner-${platform}-${arch}${ext}`;
+}
+
+async function downloadAndInstall(version: string, isLatest: boolean = false): Promise<void> {
+    // @ts-ignore
+    const isPkg = typeof process.pkg !== 'undefined';
+    if (!isPkg) {
+        throw new Error("You are running from source. Please use 'git pull' and 'npm build' directly.");
+    }
+
+    const binName = getBinaryName();
+    const binUrl = isLatest 
+        ? `https://github.com/rits1019c1/denner/releases/latest/download/${binName}`
+        : `https://github.com/rits1019c1/denner/releases/download/${version}/${binName}`;
+
+    console.log(`🔄 Downloading ${version}...`);
+    const binReq = await fetch(binUrl);
+    if (!binReq.ok) {
+        throw new Error(`Failed to download version ${version}: HTTP ${binReq.status}`);
+    }
+
+    const buffer = Buffer.from(await binReq.arrayBuffer());
+    const execPath = process.execPath;
+    const isWin = process.platform === "win32";
+
+    if (isWin) {
+        if (fs.existsSync(execPath + ".old")) fs.unlinkSync(execPath + ".old");
+        fs.renameSync(execPath, execPath + ".old");
+        fs.writeFileSync(execPath, buffer);
+    } else {
+        if (fs.existsSync(execPath)) fs.unlinkSync(execPath);
+        fs.writeFileSync(execPath, buffer);
+        fs.chmodSync(execPath, 0o755);
+    }
+
+    console.log(`✅ Denner ${version} installed successfully!`);
+}
+
+async function fetchReleases(): Promise<string[]> {
+    const response = await fetch("https://api.github.com/repos/rits1019c1/denner/releases");
+    if (!response.ok) throw new Error("Could not fetch release list from GitHub.");
+    const releases = await response.json();
+    return releases.map((r: any) => r.tag_name);
+}
+
 async function performUpdate(): Promise<void> {
     console.log('🔄 Checking for updates...');
     try {
         const response = await fetch("https://raw.githubusercontent.com/rits1019c1/denner/refs/heads/main/package.json");
         if (!response.ok) throw new Error("Could not fetch remote version info.");
         const remotePkg = await response.json();
-        const remoteVersion = remotePkg.version;
+        const remoteVersion = "v" + remotePkg.version;
 
-        if (DENNER_VERSION === remoteVersion) {
+        if (("v" + DENNER_VERSION) === remoteVersion) {
             console.log(`✅ You are already on the latest version of Denner (v${DENNER_VERSION}).`);
-            process.exit(0);
+            return;
         }
 
-        console.log(`🚀 Update available: v${DENNER_VERSION} -> v${remoteVersion}`);
-        console.log('🔄 Downloading the latest Executable...');
-
-        // @ts-ignore
-        const isPkg = typeof process.pkg !== 'undefined';
-        if (!isPkg) {
-            console.error("⚠️  You are running from source. Please use 'git pull' and 'npm build' directly.");
-            process.exit(1);
-        }
-
-        const isWin = process.platform === "win32";
-        const arch = process.arch === "x64" ? "x64" : "arm64";
-        const platform = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "win" : "linux";
-        const ext = isWin ? ".exe" : "";
-        const binName = `denner-${platform}-${arch}${ext}`;
-        const binUrl = `https://github.com/rits1019c1/denner/releases/latest/download/${binName}`;
-
-        const binReq = await fetch(binUrl);
-        if (!binReq.ok) {
-            throw new Error(`Failed to download binary from GitHub Releases: HTTP ${binReq.status}`);
-        }
-        const arrayBuffer = await binReq.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        const execPath = process.execPath;
-        if (isWin) {
-            fs.renameSync(execPath, execPath + ".old");
-            fs.writeFileSync(execPath, buffer);
-        } else {
-            if (fs.existsSync(execPath)) fs.unlinkSync(execPath);
-            fs.writeFileSync(execPath, buffer);
-            fs.chmodSync(execPath, 0o755);
-        }
-
-        console.log(`✅ Denner updated successfully to v${remoteVersion}!`);
-        process.exit(0);
+        console.log(`🚀 Update available: v${DENNER_VERSION} -> ${remoteVersion}`);
+        await downloadAndInstall(remoteVersion, true);
     } catch (e: any) {
         printError(e.message, "Update Error");
         process.exit(1);
     }
+}
+
+async function performList(): Promise<void> {
+    console.log('📚 Available Denner versions:');
+    try {
+        const versions = await fetchReleases();
+        versions.forEach(v => {
+            const currentTag = "v" + DENNER_VERSION;
+            console.log(`  ${v === currentTag ? '\x1b[32m* ' : '  '}${v}\x1b[0m`);
+        });
+        console.log('\n  Run \x1b[1mdenner install <version>\x1b[0m to switch.');
+    } catch (e: any) {
+        printError(e.message, "List Error");
+    }
+}
+
+async function performInstall(targetVersion?: string): Promise<void> {
+    try {
+        const versions = await fetchReleases();
+        if (versions.length === 0) throw new Error("No releases found.");
+
+        if (!targetVersion) {
+            console.log('\n\x1b[1m📦 Denner Version Selector\x1b[0m');
+            versions.forEach((v, i) => {
+                console.log(`  [${i + 1}] ${v}${v === ("v" + DENNER_VERSION) ? ' (current)' : ''}`);
+            });
+            
+            const rl = readLine.createInterface({ input: process.stdin, output: process.stdout });
+            const choice = await new Promise<string>(res => rl.question('\n  インストールする番号を選択してください: ', res));
+            rl.close();
+
+            const idx = parseInt(choice) - 1;
+            if (isNaN(idx) || idx < 0 || idx >= versions.length) {
+                printError("無効な選択です。");
+                return;
+            }
+            targetVersion = versions[idx];
+        } else {
+            // "1.5" -> "v1.5.0" style correction if needed
+            if (!targetVersion.startsWith('v')) targetVersion = 'v' + targetVersion;
+            if (!versions.includes(targetVersion)) {
+                // Try fuzzy match for "v1.5" to "v1.5.0"
+                const match = versions.find(v => v.startsWith(targetVersion!));
+                if (match) {
+                    targetVersion = match;
+                } else {
+                    throw new Error(`Version ${targetVersion} not found in releases.`);
+                }
+            }
+        }
+
+        if (isOlderThanManagement(targetVersion)) {
+            console.log(`\n  \x1b[31m\x1b[1m⚠️  WARNING:\x1b[0m \x1b[31m${targetVersion} はバージョン管理機能が実装される前の古いバージョンです。\x1b[0m`);
+            console.log(`  このバージョンをインストールすると、CLIから最新版に戻ることができなくなります。`);
+            console.log(`  (戻すには再度インストールスクリプトを実行し直す必要があります)`);
+            const ok = await promptUser(`\n  本当にインストールしますか？ (y/N): `);
+            if (!ok) {
+                console.log('  Installation cancelled.');
+                return;
+            }
+        }
+
+        await downloadAndInstall(targetVersion);
+    } catch (e: any) {
+        printError(e.message, "Install Error");
+        process.exit(1);
+    }
+}
+
+function isOlderThanManagement(version: string): boolean {
+    // Management features (install/list) were added in v1.6.0
+    const match = version.match(/v?(\d+)\.(\d+)(\.(\d+))?/);
+    if (!match) return false;
+    const major = parseInt(match[1]);
+    const minor = parseInt(match[2]);
+    const patch = match[4] ? parseInt(match[4]) : 0;
+
+    if (major < 1) return true;
+    if (major === 1 && minor < 6) return true;
+    return false;
 }
 
 async function main() {
@@ -285,6 +383,16 @@ async function main() {
 
     if (command === 'update' || command === 'upgrade') {
         await performUpdate();
+        return;
+    }
+
+    if (command === 'list') {
+        await performList();
+        return;
+    }
+
+    if (command === 'install') {
+        await performInstall(args[1]);
         return;
     }
 
