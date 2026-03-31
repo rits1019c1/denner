@@ -5,7 +5,7 @@
   <h3>Modern, static-typed scripting language with a focus on simplicity and powerful GUI capabilities.</h3>
 
   [![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](package.json)
-  [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+  [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
   [![English](https://img.shields.io/badge/Language-English-orange)](#-english-version)
 </div>
 
