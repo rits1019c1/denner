@@ -25,6 +25,45 @@ export class JSCodeGenerator {
     return this.output;
   }
 
+  public generatePackage(): { functions: Record<string, string>, main: string, state: string[] } {
+    let functions: Record<string, string> = {};
+    let mainOutput = '';
+    let stateOut: string[] = [];
+
+    // Temporarily hijack emit
+    const originalEmit = this.emit;
+    
+    for (const stmt of this.ast.body) {
+      if (stmt.type === 'ImportStatement') continue;
+      
+      let targetStmt = stmt;
+      if (stmt.type === 'ExportStatement') {
+         targetStmt = (stmt as AST.ExportStatement).declaration;
+      }
+
+      this.output = '';
+      this.indentLevel = 0;
+      
+      if (targetStmt.type === 'FunctionDeclaration') {
+        const decl = targetStmt as AST.FunctionDeclaration;
+        this.generateStatement(targetStmt);
+        functions[decl.id.name] = this.output;
+      } else if (targetStmt.type === 'VariableDeclaration' && (targetStmt as AST.VariableDeclaration).isObserved) {
+        const decl = targetStmt as AST.VariableDeclaration;
+        this.generateStatement(targetStmt); // Adds to observedVars
+        stateOut.push(decl.id.name);
+        mainOutput += this.output;
+      } else {
+        this.generateStatement(targetStmt);
+        mainOutput += this.output;
+      }
+    }
+    
+    this.output = mainOutput;
+    
+    return { functions, main: mainOutput, state: stateOut };
+  }
+
   private emit(line: string) {
     if (line === '') {
       this.output += '\n';

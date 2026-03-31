@@ -1,5 +1,9 @@
 import * as AST from './ast';
-import * as readline from 'readline';
+
+let readline: any;
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  readline = require('readline');
+}
 
 // ---------------------------------------------------------------------------
 // Return / Break 伝播用のシグナル例外
@@ -156,6 +160,12 @@ export class Interpreter {
     this.setupBuiltins(this.globalEnv);
   }
 
+  // Allow external injection of GUI state (e.g. from Tauri Webview)
+  public setGuiState(state: GuiState) {
+    this.gui = state;
+    this.guiRunning = true;
+  }
+
   public createEnvironment(): Environment {
     const env = new Environment();
     this.setupBuiltins(env);
@@ -163,15 +173,18 @@ export class Interpreter {
   }
 
   // ------------------------------------------------------------------
-  // 組み込みオブジェクトを globalEnv に登録
+  // 組み込みオブジェクトを globalEnv に登録 (グローバル変数)
   // ------------------------------------------------------------------
   private setupBuiltins(env: Environment) {
     // log オブジェクト
     env.set('log', {
       print: (val: any) => {
-        process.stdout.write(
-          (val === undefined || val === null ? '' : String(val)) + '\n',
-        );
+        const str = (val === undefined || val === null ? '' : String(val)) + '\n';
+        if (typeof process !== 'undefined' && process.stdout) {
+          process.stdout.write(str);
+        } else {
+          console.log(str);
+        }
       },
     });
 
@@ -179,166 +192,198 @@ export class Interpreter {
     env.set('null', null);
     env.set('undefined', undefined);
 
-    // string オブジェクト
-    env.set('string', {
-      replace: (s: string, f: string, r: string) => String(s).replace(f, r),
-      split: (s: string, sep: string) => String(s).split(sep),
-      trim: (s: string) => String(s).trim(),
-      length: (s: string) => String(s).length,
-      upper: (s: string) => String(s).toUpperCase(),
-      lower: (s: string) => String(s).toLowerCase(),
-      startswith: (s: string, p: string) => String(s).startsWith(p),
-      endswith: (s: string, p: string) => String(s).endsWith(p),
-      starts: (s: string, p: string) => String(s).startsWith(p),
-      ends: (s: string, p: string) => String(s).endsWith(p),
-      includes: (s: string, q: string) => String(s).includes(q),
-      indexof: (s: string, q: string) => String(s).indexOf(q),
-      substr: (s: string, start: number, len: number) => String(s).substr(start, len),
-      substring: (s: string, start: number, end: number) => String(s).substring(start, end),
-      charat: (s: string, i: number) => String(s).charAt(i),
-      repeat: (s: string, n: number) => String(s).repeat(n),
-      padstart: (s: string, len: number, ch: string) => String(s).padStart(len, ch),
-      padend: (s: string, len: number, ch: string) => String(s).padEnd(len, ch),
-    });
+  }
 
-    // os オブジェクト
-    env.set('os', {
-      name: () => process.platform,
-      env: (key: string) => process.env[key] ?? '',
-    });
-
-    // path オブジェクト
-    const nodePath = require('path');
-    env.set('path', {
-      join: (...parts: string[]) => nodePath.join(...parts),
-    });
-
-    // net オブジェクト
-    const http = require('http');
-    env.set('net', {
-      get: async (url: string) => {
-        const res = await fetch(url);
-        return await res.text();
-      },
-      serve: (port: number, handler: any) => {
-        const server = http.createServer(async (req: any, res: any) => {
-          try {
-            let responseValue = undefined;
-            if (handler instanceof DennerFunction) {
-              const fnEnv = new Environment(handler.closure);
-              if (handler.params.length > 0) {
-                 fnEnv.set(handler.params[0].id.name, req.url);
-              }
-              const result = await this.executeBlock(handler.body, fnEnv);
-              responseValue = (result instanceof ReturnSignal) ? result.value : undefined;
-            } else if (typeof handler === 'function') {
-              responseValue = await handler(req.url);
-            } else {
-              responseValue = handler;
-            }
-            
-            if (responseValue instanceof DennerElement) {
-              res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-              res.end(responseValue.toString());
-            } else if (typeof responseValue === 'string') {
-               const isHtml = responseValue.trim().startsWith('<') && responseValue.trim().endsWith('>');
-               res.writeHead(200, { 'Content-Type': isHtml ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8' });
-               res.end(responseValue);
-            } else if (typeof responseValue === 'object' && responseValue !== null) {
-               res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-               res.end(JSON.stringify(responseValue));
-            } else {
-               res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-               res.end(String(responseValue ?? ''));
-            }
-          } catch (err: any) {
-            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-            res.end(`Denner Server Error: ${err.message}`);
-          }
-        });
-        server.listen(port, () => {
-          console.log(`\x1b[32m🚀 Denner Server listening on http://localhost:${port}\x1b[0m`);
-        });
-        return new Promise(() => {}); // Block main script
-      }
-    });
-
-    // cli オブジェクト
-    env.set('cli', {
-      input: async (prompt: string) => {
-        return new Promise<string>((resolve) => {
-          const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-          rl.question(prompt, (ans) => { rl.close(); resolve(ans); });
-        });
-      },
-      get_key: async () => {
-        // GUI モードのときはウィンドウのキー状態を返す
-        if (this.gui) {
-          return new Promise<string>((resolve) => {
-            const check = () => {
-              if (this.gui && this.gui.lastKey) {
-                const k = this.gui.lastKey;
-                this.gui.lastKey = '';
-                resolve(k);
-              } else {
-                setImmediate(check);
-              }
-            };
-            check();
-          });
-        }
-        // CLI モードでは stdin から1文字
-        return new Promise<string>((resolve) => {
-          if (process.stdin.setRawMode) process.stdin.setRawMode(true);
-          process.stdin.once('data', (buf) => {
-            if (process.stdin.setRawMode) process.stdin.setRawMode(false);
-            resolve(buf.toString('utf8'));
-          });
-        });
-      },
-    });
-
-    // gui オブジェクト（遅延初期化: setupGui を呼ぶまでは stub）
+  // ------------------------------------------------------------------
+  // 標準ライブラリ・モジュールのファクトリ
+  // ------------------------------------------------------------------
+  private createBuiltinModule(name: string): any {
     const self = this;
-    env.set('gui', {
-      setup: async (w: number, h: number) => { await self.setupGui(w, h); },
-      clear: (color: string) => { self.guiClear(color); },
-      rect: (x: number, y: number, w: number, h: number, color: string) => self.guiRect(x, y, w, h, color),
-      image: async (url: string, x: number, y: number, w: number, h: number) => await self.guiImage(url, x, y, w, h),
-      add: async (el: DennerElement) => {
-         if (el.tag === 'rect') {
-             const r = self.guiRect(el.attributes.x || 0, el.attributes.y || 0, el.attributes.w || 50, el.attributes.h || 50, el.attributes.color || 'white');
-             r.id = String(el.attributes.id || `rect-${Date.now()}`);
-             return r;
-         } else if (el.tag === 'image') {
-             const i = await self.guiImage(el.attributes.src || '', el.attributes.x || 0, el.attributes.y || 0, el.attributes.w || 50, el.attributes.h || 50);
-             i.id = String(el.attributes.id || `image-${Date.now()}`);
-             return i;
-         } else {
-             throw new RuntimeError(`Unsupported GUI element: ${el.tag}`);
-         }
-      },
-      text: (t: string, x: number, y: number, color: string) => { self.guiText(t, x, y, color); },
-      loop: async () => { await self.guiLoop(); },
-      get_distance: (o1: PhysicsObject, o2: PhysicsObject) => {
-          if (!o1 || !o2) return 0;
-          const dx = (o1.x + o1.w/2) - (o2.x + o2.w/2);
-          const dy = (o1.y + o1.h/2) - (o2.y + o2.h/2);
-          return Math.sqrt(dx * dx + dy * dy);
-      },
-      get_last_key: () => {
-        if (!self.gui) return '';
-        const k = self.gui.lastKey;
-        if (k === 'Space') self.gui.lastKey = '';
-        return k;
-      },
-    });
+    switch (name) {
+      case 'string':
+        return {
+          replace: (s: string, f: string, r: string) => String(s).replace(f, r),
+          split: (s: string, sep: string) => String(s).split(sep),
+          trim: (s: string) => String(s).trim(),
+          length: (s: string) => String(s).length,
+          upper: (s: string) => String(s).toUpperCase(),
+          lower: (s: string) => String(s).toLowerCase(),
+          startswith: (s: string, p: string) => String(s).startsWith(p),
+          endswith: (s: string, p: string) => String(s).endsWith(p),
+          starts: (s: string, p: string) => String(s).startsWith(p),
+          ends: (s: string, p: string) => String(s).endsWith(p),
+          includes: (s: string, q: string) => String(s).includes(q),
+          indexof: (s: string, q: string) => String(s).indexOf(q),
+          substr: (s: string, start: number, len: number) => String(s).substr(start, len),
+          substring: (s: string, start: number, end: number) => String(s).substring(start, end),
+          charat: (s: string, i: number) => String(s).charAt(i),
+          repeat: (s: string, n: number) => String(s).repeat(n),
+          padstart: (s: string, len: number, ch: string) => String(s).padStart(len, ch),
+          padend: (s: string, len: number, ch: string) => String(s).padEnd(len, ch),
+        };
+      case 'os':
+        return {
+          name: () => (typeof process !== 'undefined' ? process.platform : 'browser'),
+          env: (key: string) => (typeof process !== 'undefined' ? process.env[key] : '') ?? '',
+        };
+      case 'path':
+        return {
+          join: (...parts: string[]) => {
+            if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+              return require('path').join(...parts);
+            }
+            return parts.join('/').replace(/\/+/g, '/');
+          },
+        };
+      case 'net':
+        return {
+          get: async (url: string) => {
+            const res = await fetch(url);
+            return await res.text();
+          },
+          serve: (port: number, handler: any) => {
+            if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+              const http = require('http');
+              const server = http.createServer(async (req: any, res: any) => {
+                try {
+                  let responseValue = undefined;
+                  if (handler instanceof DennerFunction) {
+                    const fnEnv = new Environment(handler.closure);
+                    if (handler.params.length > 0) {
+                       fnEnv.set(handler.params[0].id.name, req.url);
+                    }
+                    const result = await self.executeBlock(handler.body, fnEnv);
+                    responseValue = (result instanceof ReturnSignal) ? result.value : undefined;
+                  } else if (typeof handler === 'function') {
+                    responseValue = await handler(req.url);
+                  } else {
+                    responseValue = handler;
+                  }
+                  
+                  if (responseValue instanceof DennerElement) {
+                    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                    res.end(responseValue.toString());
+                  } else if (typeof responseValue === 'string') {
+                     const isHtml = responseValue.trim().startsWith('<') && responseValue.trim().endsWith('>');
+                     res.writeHead(200, { 'Content-Type': isHtml ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8' });
+                     res.end(responseValue);
+                  } else if (typeof responseValue === 'object' && responseValue !== null) {
+                     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                     res.end(JSON.stringify(responseValue));
+                  } else {
+                     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+                     res.end(String(responseValue ?? ''));
+                  }
+                } catch (err: any) {
+                  res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+                  res.end(`Denner Server Error: ${err.message}`);
+                }
+              });
+              server.listen(port, () => {
+                console.log(`\x1b[32m🚀 Denner Server listening on http://localhost:${port}\x1b[0m`);
+              });
+              return new Promise(() => {});
+            } else {
+              throw new RuntimeError("net.serve is only supported in Node.js environment.");
+            }
+          }
+        };
+      case 'cli':
+        return {
+          input: async (prompt: string) => {
+            if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+              const readline = require('readline');
+              return new Promise<string>((resolve) => {
+                const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+                rl.question(prompt, (ans: string) => { rl.close(); resolve(ans); });
+              });
+            } else {
+              return window.prompt(prompt) || '';
+            }
+          },
+          get_key: async () => {
+            if (self.gui) {
+              return new Promise<string>((resolve) => {
+                const check = () => {
+                  if (self.gui && self.gui.lastKey) {
+                    const k = self.gui.lastKey;
+                    self.gui.lastKey = '';
+                    resolve(k);
+                  } else {
+                    setTimeout(check, 10);
+                  }
+                };
+                check();
+              });
+            }
+            if (typeof process !== 'undefined' && process.stdin.setRawMode) {
+              return new Promise<string>((resolve) => {
+                process.stdin.setRawMode(true);
+                process.stdin.once('data', (buf) => {
+                  process.stdin.setRawMode!(false);
+                  resolve(buf.toString('utf8'));
+                });
+              });
+            }
+            return '';
+          },
+        };
+      case 'gui':
+        return {
+          setup: async (w: number, h: number) => { await self.setupGui(w, h); },
+          clear: (color: string) => { self.guiClear(color); },
+          rect: (x: number, y: number, w: number, h: number, color: string) => self.guiRect(x, y, w, h, color),
+          image: async (url: string, x: number, y: number, w: number, h: number) => await self.guiImage(url, x, y, w, h),
+          add: async (el: DennerElement) => {
+             if (el.tag === 'rect') {
+                 const r = self.guiRect(el.attributes.x || 0, el.attributes.y || 0, el.attributes.w || 50, el.attributes.h || 50, el.attributes.color || 'white');
+                 r.id = String(el.attributes.id || `rect-${Date.now()}`);
+                 return r;
+             } else if (el.tag === 'image') {
+                 const i = await self.guiImage(el.attributes.src || '', el.attributes.x || 0, el.attributes.y || 0, el.attributes.w || 50, el.attributes.h || 50);
+                 i.id = String(el.attributes.id || `image-${Date.now()}`);
+                 return i;
+             } else {
+                 throw new RuntimeError(`Unsupported GUI element: ${el.tag}`);
+             }
+          },
+          text: (t: string, x: number, y: number, color: string) => { self.guiText(t, x, y, color); },
+          loop: async () => { await self.guiLoop(); },
+          get_distance: (o1: PhysicsObject, o2: PhysicsObject) => {
+              if (!o1 || !o2) return 0;
+              const dx = (o1.x + o1.w/2) - (o2.x + o2.w/2);
+              const dy = (o1.y + o1.h/2) - (o2.y + o2.h/2);
+              return Math.sqrt(dx * dx + dy * dy);
+          },
+          get_last_key: () => {
+            if (!self.gui) return '';
+            const k = self.gui.lastKey;
+            if (k === 'Space') self.gui.lastKey = '';
+            return k;
+          },
+        };
+      default:
+        throw new RuntimeError(`Unknown built-in module: ${name}`);
+    }
   }
 
   // ------------------------------------------------------------------
   // GUI 初期化
   // ------------------------------------------------------------------
   private async setupGui(w: number, h: number) {
+    if (this.gui) return;
+
+    // Browser environment
+    if (typeof window !== 'undefined' && (window as any).CanvasRenderingContext2D) {
+      // In browser, the GUI state should be set externally via setGuiState.
+      // If it's not set, we might throw or wait.
+      if (!this.gui) {
+        throw new RuntimeError('GUI state not initialized. Call setGuiState first in browser environment.');
+      }
+      return;
+    }
+
+    // Node environment
     if (!this.sdl) {
       try {
         this.sdl = require('@kmamal/sdl');
@@ -467,10 +512,20 @@ export class Interpreter {
     while (this.guiRunning) {
       // Clear screen
       this.guiClear('black');
-      // Check for quit event or window close
-      if (win.destroyed) {
+
+      // Check for quit event or window close (Only for SDL)
+      if (win && (win as any).destroyed) {
          this.guiRunning = false;
          break;
+      }
+
+      // In browser, we should yield to the event loop or use requestAnimationFrame.
+      // Since this is an async method loop, a simple delay is enough for now, 
+      // but requestAnimationFrame is better for smooth 60fps.
+      if (typeof window !== 'undefined' && (window as any).requestAnimationFrame) {
+         await new Promise(resolve => window.requestAnimationFrame(resolve));
+      } else {
+         await new Promise(resolve => setTimeout(resolve, 16));
       }
 
     // プレイヤー（物理なし最初の rect）のキー操作
@@ -740,6 +795,21 @@ export class Interpreter {
       // --------------------------------------------------------
       case 'ImportStatement': {
         const imp = stmt as AST.ImportStatement;
+        
+        // 組み込みモジュールのインターセプト
+        const builtins = ['gui', 'net', 'os', 'path', 'cli', 'string'];
+        if (builtins.includes(imp.source)) {
+            const modObj = this.createBuiltinModule(imp.source);
+            if (imp.alias) {
+                // namespace import
+                env.set(imp.alias, modObj);
+            } else {
+                // make the module itself available
+                env.set(imp.source, modObj);
+            }
+            return;
+        }
+
         if (!this.moduleLoader) {
             throw new RuntimeError(`Module loader not provided for import '${imp.source}'`);
         }

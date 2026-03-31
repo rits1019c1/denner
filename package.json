@@ -1,6 +1,6 @@
 {
   "name": "denner",
-  "version": "1.6.7",
+  "version": "1.7.0",
   "description": "",
   "main": "dist/src/index.js",
   "bin": {
@@ -19,6 +19,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
     "esbuild": "^0.27.4",

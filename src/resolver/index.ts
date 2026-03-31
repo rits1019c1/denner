@@ -1,32 +1,51 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as https from 'https';
+let fs: any;
+let path: any;
+let https: any;
+
+// Use dynamic require for Node built-ins to avoid bundling errors in browser
+if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+  fs = require('fs');
+  path = require('path');
+  https = require('https');
+}
 
 export class Resolver {
-  private cacheDir: string;
+  private cacheDir: string | null = null;
   private visited: Set<string> = new Set();
   public modules: Map<string, string> = new Map(); // resolved path -> source code
   
   constructor() {
-    this.cacheDir = path.join(process.cwd(), '.denner_cache');
-    if (!fs.existsSync(this.cacheDir)) {
-      fs.mkdirSync(this.cacheDir);
+    if (fs && path) {
+      this.cacheDir = path.join(process.cwd(), '.denner_cache');
+      if (!fs.existsSync(this.cacheDir)) {
+        fs.mkdirSync(this.cacheDir);
+      }
     }
   }
 
-  public async resolve(sourcePath: string, basePath: string = process.cwd()): Promise<void> {
+  public async resolve(sourcePath: string, basePath: string = ''): Promise<void> {
     const isUrl = sourcePath.startsWith('http://') || sourcePath.startsWith('https://');
-    let absolutePath = isUrl ? sourcePath : path.resolve(basePath, sourcePath);
+    let absolutePath = '';
 
-    if (!isUrl && !fs.existsSync(absolutePath) && !absolutePath.endsWith('.den')) {
-       const denPath = absolutePath + '.den';
-       if (fs.existsSync(denPath)) {
-          absolutePath = denPath;
-       }
+    if (isUrl) {
+      absolutePath = sourcePath;
+    } else {
+      if (path) {
+        absolutePath = path.resolve(basePath, sourcePath);
+        if (!fs.existsSync(absolutePath) && !absolutePath.endsWith('.den')) {
+          const denPath = absolutePath + '.den';
+          if (fs.existsSync(denPath)) {
+             absolutePath = denPath;
+          }
+        }
+      } else {
+        // Browser fallback (very basic)
+        absolutePath = sourcePath;
+      }
     }
 
     if (this.visited.has(absolutePath)) {
-       return; // cycle prevented
+       return;
     }
     this.visited.add(absolutePath);
 
@@ -34,49 +53,65 @@ export class Resolver {
     if (isUrl) {
        sourceCode = await this.fetchUrl(absolutePath);
     } else {
-       if (!fs.existsSync(absolutePath)) {
-          throw new Error(`Cannot find local module: "${absolutePath}"`);
+       if (fs) {
+         if (!fs.existsSync(absolutePath)) {
+            throw new Error(`Cannot find local module: "${absolutePath}"`);
+         }
+         sourceCode = fs.readFileSync(absolutePath, 'utf8');
+       } else {
+         // In browser, we might want to fetch local files if they are available via web server
+         const res = await fetch(absolutePath);
+         sourceCode = await res.text();
        }
-       if (fs.statSync(absolutePath).isDirectory()) {
-          throw new Error(`The path is a directory, not a file: "${absolutePath}"`);
-       }
-       sourceCode = fs.readFileSync(absolutePath, 'utf8');
     }
 
     this.modules.set(absolutePath, sourceCode);
 
-    // Extract imports regex-wise to rapidly resolve recursively before full AST parsing
-    // Ignore lines starting with //
     const importRegex = /^(?!\s*\/\/).*import\s+"([^"]+)"/gm;
     let match;
     while ((match = importRegex.exec(sourceCode)) !== null) {
       const depPath = match[1];
-      const newBasePath = isUrl ? new URL('.', absolutePath).href : path.dirname(absolutePath);
+      let newBasePath = '';
+      if (isUrl) {
+        newBasePath = new URL('.', absolutePath).href;
+      } else if (path) {
+        newBasePath = path.dirname(absolutePath);
+      }
       await this.resolve(depPath, newBasePath);
     }
   }
 
-  private fetchUrl(url: string): Promise<string> {
-     // Check cache first
-     const urlHash = Buffer.from(url).toString('base64').replace(/\W/g, '');
-     const cacheFile = path.join(this.cacheDir, urlHash + '.den');
-     if (fs.existsSync(cacheFile)) {
-         return Promise.resolve(fs.readFileSync(cacheFile, 'utf8'));
+  private async fetchUrl(url: string): Promise<string> {
+     // Browser version: just fetch
+     if (typeof fetch !== 'undefined') {
+        const res = await fetch(url);
+        return await res.text();
      }
 
-     return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-           let data = '';
-           res.on('data', chunk => data += chunk);
-           res.on('end', () => {
-               if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-                  fs.writeFileSync(cacheFile, data);
-                  resolve(data);
-               } else {
-                  reject(new Error(`Failed to fetch "${url}": ${res.statusCode}`));
-               }
-           });
-        }).on('error', reject);
-     });
+     // Node version: with cache
+     if (fs && path && https && this.cacheDir) {
+        const urlHash = Buffer.from(url).toString('base64').replace(/\W/g, '');
+        const cacheFile = path.join(this.cacheDir, urlHash + '.den');
+        if (fs.existsSync(cacheFile)) {
+            return fs.readFileSync(cacheFile, 'utf8');
+        }
+
+        return new Promise((resolve, reject) => {
+           https.get(url, (res: any) => {
+              let data = '';
+              res.on('data', (chunk: any) => data += chunk);
+              res.on('end', () => {
+                  if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                     fs.writeFileSync(cacheFile, data);
+                     resolve(data);
+                  } else {
+                     reject(new Error(`Failed to fetch "${url}": ${res.statusCode}`));
+                  }
+              });
+           }).on('error', reject);
+        });
+     }
+     
+     throw new Error("No network implementation available.");
   }
 }

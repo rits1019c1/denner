@@ -2,6 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readLine from 'readline';
+import { spawn } from 'child_process';
 import { Resolver } from './resolver';
 import { Lexer } from './compiler/lexer';
 import { Parser } from './compiler/parser';
@@ -9,8 +10,7 @@ import { TypeChecker } from './compiler/typechecker';
 import { JSCodeGenerator } from './compiler/jscodegen';
 import { Interpreter } from './compiler/interpreter';
 import * as AST from './compiler/ast';
-
-const DENNER_VERSION = '1.6.7';
+const DENNER_VERSION = '1.7.0';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -191,17 +191,12 @@ async function startRepl(): Promise<void> {
     });
 }
 
-function detectGuiUsage(node: any): boolean {
-    if (!node) return false;
-    if (Array.isArray(node)) {
-        return node.some(n => detectGuiUsage(n));
-    }
-    if (typeof node === 'object') {
-        if (node.type === 'MemberExpression' && node.object?.type === 'Identifier' && node.object.name === 'gui') {
-            const complexGui = ['setup', 'rect', 'image', 'loop'];
-            if (complexGui.includes(node.property?.name)) return true;
+function detectGuiUsage(ast: any): boolean {
+    if (!ast || !ast.body) return false;
+    for (const stmt of ast.body) {
+        if (stmt.type === 'ImportStatement' && stmt.source === 'gui') {
+            return true;
         }
-        return Object.values(node).some(v => detectGuiUsage(v));
     }
     return false;
 }
@@ -224,7 +219,7 @@ async function downloadAndInstall(version: string, isLatest: boolean = false): P
     }
 
     const binName = getBinaryName();
-    const binUrl = isLatest 
+    const binUrl = isLatest
         ? `https://github.com/rits1019c1/denner/releases/latest/download/${binName}`
         : `https://github.com/rits1019c1/denner/releases/download/${version}/${binName}`;
 
@@ -303,7 +298,7 @@ async function performInstall(targetVersion?: string): Promise<void> {
             versions.forEach((v, i) => {
                 console.log(`  [${i + 1}] ${v}${v === ("v" + DENNER_VERSION) ? ' (current)' : ''}`);
             });
-            
+
             const rl = readLine.createInterface({ input: process.stdin, output: process.stdout });
             const choice = await new Promise<string>(res => rl.question('\n  インストールする番号を選択してください: ', res));
             rl.close();
@@ -380,7 +375,7 @@ async function main() {
         } else {
             process.exit(0);
         }
-    }    const command = args[0];
+    } const command = args[0];
 
     if (command === '--version' || command === '-v') {
         console.log(`Denner CLI v${DENNER_VERSION}`);
@@ -420,7 +415,7 @@ async function main() {
             console.log('  使い方: \x1b[1mdenner run <file|url>\x1b[0m');
             process.exit(1);
         }
-        
+
         let fileName = args[1];
         if (!fileName.startsWith('http://') && !fileName.startsWith('https://')) {
             const absolutePath = path.resolve(fileName);
@@ -449,7 +444,49 @@ async function main() {
             const ast = parser.parse();
 
             if (detectGuiUsage(ast)) {
-                console.log(`\x1b[33m🎨 GUI usage detected.\x1b[0m Running with native SDL2 window.`);
+                console.log(`\x1b[33m🎨 GUI usage detected.\x1b[0m Injecting sources into Tauri webview...`);
+                
+                const codegen = new JSCodeGenerator(ast);
+                const pkg = codegen.generatePackage();
+                
+                const payload = {
+                    entry: absoluteEntryPoint,
+                    files: Array.from(resolver.modules.entries()),
+                    compiled: pkg
+                };
+                
+                // Locate Tauri binary or fall back to local dev script
+                const backendExe = process.platform === 'win32' ? 'denner-gui.exe' : 'denner-gui';
+                const globalBinPath = path.join(path.dirname(process.execPath), backendExe);
+                const isGlobal = fs.existsSync(globalBinPath);
+                
+                const cacheDir = path.resolve(path.dirname(fileName), '.denner_cache');
+                if (!fs.existsSync(cacheDir)) {
+                    fs.mkdirSync(cacheDir, { recursive: true });
+                }
+                const payloadPath = path.join(cacheDir, 'payload.json');
+                fs.writeFileSync(payloadPath, JSON.stringify(payload), 'utf8');
+
+                const spawnArgs = ['--', '--payload-path', payloadPath]; // Flag to tell Tauri it's receiving payload
+                
+                let tauriProcess;
+                if (isGlobal) {
+                    tauriProcess = spawn(globalBinPath, ['--payload-path', payloadPath], { stdio: 'inherit' });
+                } else {
+                    // Fallback to dev env
+                    console.log(`\x1b[90m[Dev] Tauri binary not found at ${globalBinPath}, attempting npm run tauri dev...\x1b[0m`);
+                    const tauriDir = path.resolve(__dirname, '../../src-tauri');
+                    tauriProcess = spawn('npm', ['run', 'tauri', 'dev', ...spawnArgs], { 
+                        cwd: path.resolve(__dirname, '../../'),
+                        stdio: 'inherit'
+                    });
+                }
+                
+                tauriProcess.on('exit', (code) => {
+                    process.exit(code || 0);
+                });
+                
+                return;
             }
 
             const interpreter = new Interpreter();
