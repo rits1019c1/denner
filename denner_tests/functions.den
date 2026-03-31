@@ -1,0 +1,19 @@
+// ============================================
+// Functions
+// ============================================
+
+function add(a: num, b: num): num {
+    return a + b
+}
+
+function greet(name: str): str {
+    return "Hello, " + name
+}
+
+// Test functions
+result = add(10, 20)
+log.print("add(10, 20) = ")
+log.print(result)
+
+message = greet("Denner")
+log.print(message)

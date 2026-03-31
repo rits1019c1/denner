@@ -1,0 +1,17 @@
+// ============================================
+// Classes (Object-Oriented Programming)
+// ============================================
+
+class Counter {
+    count: num
+
+    function increment() {
+        this.count = this.count + 1
+    }
+}
+
+counter = Counter()
+counter.increment()
+counter.increment()
+log.print("Counter value: ")
+log.print(counter.count)

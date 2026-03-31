@@ -1,0 +1,28 @@
+// ============================================
+// Simple Game Demo - SDL2 Native
+// ============================================
+
+gui.setup(800, 600)
+
+playerX = 400
+playerY = 300
+playerSize = 30
+
+score = 0
+
+loop = true
+while loop {
+    gui.clear("#1a1a2e")
+    
+    // Draw player
+    player = gui.rect(playerX - playerSize/2, playerY - playerSize/2, playerSize, playerSize, "#e94560")
+    gui.draw(player)
+    
+    // Draw score
+    gui.text("Score: {score}", 20, 20, "#ffffff")
+    gui.text("Arrow Keys to Move", 20, 50, "#888888")
+    
+    loop = gui.loop()
+}
+
+log.print("Final Score: {score}")

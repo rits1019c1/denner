@@ -1,0 +1,6 @@
+// ============================================
+// Hello World - Denner Programming Language
+// ============================================
+
+log.print("Hello, World!")
+log.print("Welcome to Denner!")

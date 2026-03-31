@@ -1,0 +1,19 @@
+// ============================================
+// Standard Library Demo
+// ============================================
+
+// OS Info
+log.print("OS: ")
+log.print(os.name())
+
+// Path
+fullPath = path.join("folder", "file.txt")
+log.print("Joined path: ")
+log.print(fullPath)
+
+// String concatenation
+text1 = "hello"
+text2 = "denner"
+combined = text1 + " " + text2
+log.print("Combined: ")
+log.print(combined)

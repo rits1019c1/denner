@@ -1,0 +1,26 @@
+// ============================================
+// Control Flow
+// ============================================
+
+// If-Else
+score = 85
+
+if score > 80 {
+    log.print("Score is greater than 80")
+} else {
+    log.print("Score is 80 or less")
+}
+
+// While loop
+i = 0
+while i < 3 {
+    log.print("while: i = ")
+    log.print(i)
+    i = i + 1
+}
+
+// For range loop
+for j in 0..3 {
+    log.print("for: j = ")
+    log.print(j)
+}

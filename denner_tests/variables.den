@@ -1,0 +1,26 @@
+// ============================================
+// Variables & Types
+// ============================================
+
+// Numbers
+x = 10
+y = 3.14
+
+// Strings
+name = "Denner"
+
+// Boolean
+isActive = true
+
+// String interpolation
+log.print("x = {x}")
+log.print("y = {y}")
+log.print("name = {name}")
+log.print("isActive = {isActive}")
+
+// Arithmetic
+sum = x + 5
+product = x * y
+
+log.print("sum = {sum}")
+log.print("product = {product}")

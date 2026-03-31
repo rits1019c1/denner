@@ -1,0 +1,23 @@
+// ============================================
+// GUI Basic - SDL2 Native
+// Requires: SDL2, SDL2_image, SDL2_ttf
+// Compile: denner compile gui_basic.den -o gui_basic
+// ============================================
+
+gui.setup(640, 480)
+
+box = gui.rect(100, 100, 50, 50, "#ff0000")
+circle = gui.rect(300, 200, 40, 40, "#00ff00")
+
+gui.text("Hello SDL2!", 250, 50, "#ffffff")
+
+loop = true
+while loop {
+    gui.clear("#000000")
+    gui.draw(box)
+    gui.draw(circle)
+    gui.text("Press X to quit", 220, 400, "#aaaaaa")
+    loop = gui.loop()
+}
+
+log.print("Goodbye!")
