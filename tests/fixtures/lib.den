@@ -1,0 +1,3 @@
+export function multiply(x:num, y:num):num {
+  return x * y
+}

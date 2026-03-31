@@ -1,0 +1,7 @@
+import "./lib.den" as math
+
+a = 5
+b = 4
+c = multiply(a, b)
+
+log.print(c)

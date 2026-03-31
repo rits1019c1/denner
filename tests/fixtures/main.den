@@ -1,0 +1,9 @@
+function add(x:num, y:num):num {
+  return x + y
+}
+
+a:num = 10
+b = 20
+c = add(a, b)
+
+log.print(c)
