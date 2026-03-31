@@ -1,7 +1,7 @@
 # 🚀 Denner Programming Language
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/rits1019c1/denner/main/gui/logo.png" width="120" alt="Denner Logo" onerror="this.src='https://img.icons8.com/isometric/100/gears.png'; this.style.display='none';">
+  <img src="https://raw.githubusercontent.com/rits1019c1/denner_web/refs/heads/main/logo.png" width="120" alt="Denner Logo" onerror="this.src='https://img.icons8.com/isometric/100/gears.png'; this.style.display='none';">
   <h3>Modern, static-typed scripting language with a focus on simplicity and powerful GUI capabilities.</h3>
 
   [![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](package.json)
@@ -63,6 +63,11 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 
 ```text
 denner/
+├── examples/              # 📚 豊富なサンプルコード
+│   ├── basic/             # 基礎文法（変数、ループ、再帰）
+│   ├── gui/               # GUI・物理エンジンデモ
+│   ├── net/               # サーバー・通信関連
+│   └── advanced/          # クラス・モジュールシステム
 ├── src/                   # 💻 Denner コアシステム (TypeScript)
 │   ├── compiler/          # 解析器・実行エンジン
 │   └── resolver/          # 依存解決

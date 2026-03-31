@@ -1,7 +1,7 @@
 # 🚀 Denner Programming Language
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/rits1019c1/denner/main/gui/logo.png" width="120" alt="Denner Logo" onerror="this.src='https://img.icons8.com/isometric/100/gears.png'; this.style.display='none';">
+  <img src="https://raw.githubusercontent.com/rits1019c1/denner_web/refs/heads/main/logo.png" width="120" alt="Denner Logo" onerror="this.src='https://img.icons8.com/isometric/100/gears.png'; this.style.display='none';">
   <h3>Modern, static-typed scripting language with a focus on simplicity and powerful GUI capabilities.</h3>
 
   [![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](package.json)
@@ -63,6 +63,11 @@ The organized `examples/` folder contains many samples to help you experience th
 
 ```text
 denner/
+├── examples/              # 📚 Rich set of sample code
+│   ├── basic/             # Grammar basics (variables, loops, recursion)
+│   ├── gui/               # GUI & Physics engine demos
+│   ├── net/               # Server & Network communication
+│   └── advanced/          # Classes & Module system
 ├── src/                   # 💻 Denner Core System (TypeScript)
 │   ├── compiler/          # Parser & Execution engine
 │   └── resolver/          # Dependency resolution
