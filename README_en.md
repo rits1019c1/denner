@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/rits1019c1/denner_web/refs/heads/main/logo.png" width="120" alt="Denner Logo" onerror="this.src='https://img.icons8.com/isometric/100/gears.png'; this.style.display='none';">
   <h3>Modern, static-typed scripting language with a focus on simplicity and powerful GUI capabilities.</h3>
 
-  [![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](package.json)
+  [![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](package.json)
   [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
   [![日本語](https://img.shields.io/badge/Language-日本語-red)](#-japanese-version)
 </div>

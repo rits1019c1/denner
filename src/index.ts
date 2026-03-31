@@ -10,7 +10,7 @@ import { JSCodeGenerator } from './compiler/jscodegen';
 import { Interpreter } from './compiler/interpreter';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.5.0';
+const DENNER_VERSION = '1.6.0';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -21,6 +21,44 @@ function promptUser(query: string): Promise<boolean> {
         rl.close();
         resolve(ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes');
     }));
+}
+
+function printError(message: string, prefix: string = "Error") {
+    console.error(`\n  \x1b[31m\x1b[1m[!] ${prefix}:\x1b[22m\x1b[0m \x1b[31m${message}\x1b[0m\n`);
+}
+
+function levenshtein(a: string, b: string): number {
+    const tmp: number[][] = [];
+    for (let i = 0; i <= a.length; i++) tmp[i] = [i];
+    for (let j = 0; j <= b.length; j++) tmp[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            tmp[i][j] = Math.min(
+                tmp[i - 1][j] + 1,
+                tmp[i][j - 1] + 1,
+                tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+        }
+    }
+    return tmp[a.length][b.length];
+}
+
+function suggestCommand(input: string) {
+    const commands = ['run', 'update', 'upgrade', 'help', 'compile'];
+    let bestMatch = '';
+    let minDistance = 3; // Max threshold for suggestion
+
+    for (const cmd of commands) {
+        const dist = levenshtein(input, cmd);
+        if (dist < minDistance) {
+            minDistance = dist;
+            bestMatch = cmd;
+        }
+    }
+
+    if (bestMatch) {
+        console.log(`  \x1b[33mもしかして: \x1b[1m${bestMatch}\x1b[0m\x1b[33m ですか？\x1b[0m`);
+    }
 }
 
 function printHelp() {
@@ -138,7 +176,7 @@ async function startRepl(): Promise<void> {
                     }
                 }
             } catch (err: any) {
-                console.log(`\x1b[31mError:\x1b[0m ${err.message}`);
+                printError(err.message, "REPL Error");
             }
             rl.prompt();
         })();
@@ -217,7 +255,7 @@ async function performUpdate(): Promise<void> {
         console.log(`✅ Denner updated successfully to v${remoteVersion}!`);
         process.exit(0);
     } catch (e: any) {
-        console.error("Failed to check for updates:", e.message);
+        printError(e.message, "Update Error");
         process.exit(1);
     }
 }
@@ -252,35 +290,30 @@ async function main() {
 
     checkForUpdateSilently();
 
-    if (args.length < 2) {
-        console.error('Error: Missing <file> argument.');
-        process.exit(1);
-    }
-
-    const fileName = args[1];
-    let debugMode = false;
-
-    for (let i = 2; i < args.length; i++) {
-        if (args[i] === '-d' || args[i] === '--debug') {
-            debugMode = true;
+    if (command === 'run') {
+        if (args.length < 2) {
+            printError('実行するファイルを指定してください。', 'Missing Argument');
+            console.log('  使い方: \x1b[1mdenner run <file|url>\x1b[0m');
+            process.exit(1);
         }
-    }
+        
+        const fileName = args[1];
+        let debugMode = false;
+        for (let i = 2; i < args.length; i++) {
+            if (args[i] === '-d' || args[i] === '--debug') debugMode = true;
+        }
 
-    try {
-        const resolver = new Resolver();
-        await resolver.resolve(fileName);
-
-        // --- run (Isolated Modules) ---
-        if (command === 'run') {
-            const entrySource = resolver.modules.get(path.resolve(fileName));
+        try {
+            const resolver = new Resolver();
+            await resolver.resolve(fileName);
+            const isUrl = fileName.startsWith('http://') || fileName.startsWith('https://');
+            const absoluteEntryPoint = isUrl ? fileName : path.resolve(fileName);
+            const entrySource = resolver.modules.get(absoluteEntryPoint);
             if (!entrySource) throw new Error(`Could not find entry file: ${fileName}`);
 
             const tokens = new Lexer(entrySource).tokenize();
             const parser = new Parser(tokens);
             const ast = parser.parse();
-
-            const typechecker = new TypeChecker(ast);
-            // typechecker.check(); // Typechecking isolated modules needs a more complex Resolver integration in TypeChecker
 
             if (detectGuiUsage(ast)) {
                 console.log(`\x1b[33m🎨 GUI usage detected.\x1b[0m Running with native SDL2 window.`);
@@ -307,17 +340,19 @@ async function main() {
             };
 
             await interpreter.run(ast, moduleLoader);
-        } else if (command === 'compile') {
-            console.log(`\x1b[33m⚠️  'compile' コマンドは廃止されました。\x1b[0m`);
-            console.log(`  Denner はインタープリタに移行したため、ネイティブバイナリの生成はサポートしていません。`);
-            console.log(`  スクリプトを実行するには: \x1b[1mdenner run <file>\x1b[0m`);
-            process.exit(0);
-        } else {
-            console.error(`Unknown command: ${command}`);
+        } catch (err: any) {
+            printError(err.message);
             process.exit(1);
         }
-    } catch (err: any) {
-        console.error(err.message);
+    } else if (command === 'compile') {
+        console.log(`\x1b[33m⚠️  'compile' コマンドは廃止されました。\x1b[0m`);
+        console.log(`  Denner はインタープリタに移行したため、ネイティブバイナリの生成はサポートしていません。`);
+        console.log(`  スクリプトを実行するには: \x1b[1mdenner run <file>\x1b[0m`);
+        process.exit(0);
+    } else {
+        printError(`未知のコマンドです: ${command}`, 'Unknown Command');
+        suggestCommand(command);
+        console.log('  使い方を確認するには \x1b[1mdenner --help\x1b[0m を実行してください。');
         process.exit(1);
     }
 }
