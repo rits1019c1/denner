@@ -18,6 +18,13 @@ export class Resolver {
     const isUrl = sourcePath.startsWith('http://') || sourcePath.startsWith('https://');
     let absolutePath = isUrl ? sourcePath : path.resolve(basePath, sourcePath);
 
+    if (!isUrl && !fs.existsSync(absolutePath) && !absolutePath.endsWith('.den')) {
+       const denPath = absolutePath + '.den';
+       if (fs.existsSync(denPath)) {
+          absolutePath = denPath;
+       }
+    }
+
     if (this.visited.has(absolutePath)) {
        return; // cycle prevented
     }
@@ -28,7 +35,10 @@ export class Resolver {
        sourceCode = await this.fetchUrl(absolutePath);
     } else {
        if (!fs.existsSync(absolutePath)) {
-          throw new Error(`Cannot find local module: ${absolutePath}`);
+          throw new Error(`Cannot find local module: "${absolutePath}"`);
+       }
+       if (fs.statSync(absolutePath).isDirectory()) {
+          throw new Error(`The path is a directory, not a file: "${absolutePath}"`);
        }
        sourceCode = fs.readFileSync(absolutePath, 'utf8');
     }
@@ -36,7 +46,8 @@ export class Resolver {
     this.modules.set(absolutePath, sourceCode);
 
     // Extract imports regex-wise to rapidly resolve recursively before full AST parsing
-    const importRegex = /import\s+"([^"]+)"/g;
+    // Ignore lines starting with //
+    const importRegex = /^(?!\s*\/\/).*import\s+"([^"]+)"/gm;
     let match;
     while ((match = importRegex.exec(sourceCode)) !== null) {
       const depPath = match[1];
@@ -62,7 +73,7 @@ export class Resolver {
                   fs.writeFileSync(cacheFile, data);
                   resolve(data);
                } else {
-                  reject(new Error(`Failed to fetch ${url}: ${res.statusCode}`));
+                  reject(new Error(`Failed to fetch "${url}": ${res.statusCode}`));
                }
            });
         }).on('error', reject);

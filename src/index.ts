@@ -10,7 +10,7 @@ import { JSCodeGenerator } from './compiler/jscodegen';
 import { Interpreter } from './compiler/interpreter';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.6.5';
+const DENNER_VERSION = '1.6.7';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
@@ -71,6 +71,7 @@ function printHelp() {
     console.log('    $ denner run <file|url>         Run a Denner script');
     console.log('    $ denner update                 Update to the latest version');
     console.log('    $ denner install [version]      Install a specific version (shows menu if omitted)');
+    console.log('    $ denner reinstall              Reinstall the current version');
     console.log('    $ denner list                   List all available versions');
     console.log('');
     console.log('  \x1b[1mOPTIONS\x1b[0m');
@@ -322,7 +323,7 @@ async function performInstall(targetVersion?: string): Promise<void> {
                 if (match) {
                     targetVersion = match;
                 } else {
-                    throw new Error(`Version ${targetVersion} not found in releases.`);
+                    throw new Error(`Version "${targetVersion}" not found in releases.`);
                 }
             }
         }
@@ -356,6 +357,16 @@ function isOlderThanManagement(version: string): boolean {
     if (major < 1) return true;
     if (major === 1 && minor < 6) return true;
     return false;
+}
+
+async function performReinstall(): Promise<void> {
+    console.log(`🔄 Reinstalling Denner v${DENNER_VERSION}...`);
+    try {
+        await downloadAndInstall("v" + DENNER_VERSION);
+    } catch (e: any) {
+        printError(e.message, "Reinstall Error");
+        process.exit(1);
+    }
 }
 
 async function main() {
@@ -396,6 +407,11 @@ async function main() {
         return;
     }
 
+    if (command === 'reinstall') {
+        await performReinstall();
+        return;
+    }
+
     checkForUpdateSilently();
 
     if (command === 'run') {
@@ -405,7 +421,16 @@ async function main() {
             process.exit(1);
         }
         
-        const fileName = args[1];
+        let fileName = args[1];
+        if (!fileName.startsWith('http://') && !fileName.startsWith('https://')) {
+            const absolutePath = path.resolve(fileName);
+            if (!fs.existsSync(absolutePath) && !fileName.endsWith('.den')) {
+                const denPath = absolutePath + '.den';
+                if (fs.existsSync(denPath)) {
+                    fileName = denPath;
+                }
+            }
+        }
         let debugMode = false;
         for (let i = 2; i < args.length; i++) {
             if (args[i] === '-d' || args[i] === '--debug') debugMode = true;
@@ -417,7 +442,7 @@ async function main() {
             const isUrl = fileName.startsWith('http://') || fileName.startsWith('https://');
             const absoluteEntryPoint = isUrl ? fileName : path.resolve(fileName);
             const entrySource = resolver.modules.get(absoluteEntryPoint);
-            if (!entrySource) throw new Error(`Could not find entry file: ${fileName}`);
+            if (!entrySource) throw new Error(`Could not find entry file: "${fileName}"`);
 
             const tokens = new Lexer(entrySource).tokenize();
             const parser = new Parser(tokens);
@@ -436,7 +461,7 @@ async function main() {
 
                 await subResolver.resolve(sourcePath, basePath);
                 const source = subResolver.modules.get(absolutePath);
-                if (!source) throw new Error(`Could not find module: ${sourcePath}`);
+                if (!source) throw new Error(`Could not find module: "${sourcePath}"`);
 
                 const subTokens = new Lexer(source).tokenize();
                 const subParser = new Parser(subTokens);
