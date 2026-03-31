@@ -43,7 +43,7 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 
 ## 🚀 使い方とサンプル
 
-整理された `[examples](https://github.com/rits1019c1/denner_examples)` には、Dennerの魅力を体験できる多くのサンプルが含まれています。
+整理された [examples](https://github.com/rits1019c1/denner_examples) には、Dennerの魅力を体験できる多くのサンプルが含まれています。
 
 ### 1. 基礎 (Basic)
 - `hello_world.den`: 伝統的な最初のプログラム

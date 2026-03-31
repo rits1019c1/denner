@@ -43,7 +43,7 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 
 ## 🚀 Usage & Examples
 
-The organized `examples/` folder contains many samples to help you experience the power of Denner.
+The organized [examples](https://github.com/rits1019c1/denner_examples) repository contains many samples to help you experience the power of Denner.
 
 ### 1. Basic
 - `hello_world.den`: The traditional first program.
@@ -63,11 +63,6 @@ The organized `examples/` folder contains many samples to help you experience th
 
 ```text
 denner/
-├── examples/              # 📚 Rich set of sample code
-│   ├── basic/             # Grammar basics (variables, loops, recursion)
-│   ├── gui/               # GUI & Physics engine demos
-│   ├── net/               # Server & Network communication
-│   └── advanced/          # Classes & Module system
 ├── src/                   # 💻 Denner Core System (TypeScript)
 │   ├── compiler/          # Parser & Execution engine
 │   └── resolver/          # Dependency resolution
