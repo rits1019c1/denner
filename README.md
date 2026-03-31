@@ -43,7 +43,7 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 
 ## 🚀 使い方とサンプル
 
-整理された `examples/` フォルダには、Dennerの魅力を体験できる多くのサンプルが含まれています。
+整理された `[examples](https://github.com/rits1019c1/denner_examples)` には、Dennerの魅力を体験できる多くのサンプルが含まれています。
 
 ### 1. 基礎 (Basic)
 - `hello_world.den`: 伝統的な最初のプログラム
@@ -63,11 +63,6 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 
 ```text
 denner/
-├── examples/              # 📚 豊富なサンプルコード
-│   ├── basic/             # 基礎文法（変数、ループ、再帰）
-│   ├── gui/               # GUI・物理エンジンデモ
-│   ├── net/               # サーバー・通信関連
-│   └── advanced/          # クラス・モジュールシステム
 ├── src/                   # 💻 Denner コアシステム (TypeScript)
 │   ├── compiler/          # 解析器・実行エンジン
 │   └── resolver/          # 依存解決
