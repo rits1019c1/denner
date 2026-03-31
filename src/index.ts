@@ -10,7 +10,7 @@ import { JSCodeGenerator } from './compiler/jscodegen';
 import { Interpreter } from './compiler/interpreter';
 import * as AST from './compiler/ast';
 
-const DENNER_VERSION = '1.4.0';
+const DENNER_VERSION = '1.5.0';
 
 function promptUser(query: string): Promise<boolean> {
     const rl = readLine.createInterface({
