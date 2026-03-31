@@ -26,6 +26,7 @@ export type NodeType =
   | 'ObjectLiteral'
   | 'FunctionExpression'
   | 'ListLiteral'
+  | 'ElementLiteral'
   | 'UnaryExpression';
 
 export interface BaseNode {
@@ -64,6 +65,7 @@ export type Expression =
   | ObjectLiteral
   | FunctionExpression
   | ListLiteral
+  | ElementLiteral
   | UnaryExpression;
 
 // Statements
@@ -140,7 +142,7 @@ export interface ImportStatement extends BaseNode {
 
 export interface ExportStatement extends BaseNode {
   type: 'ExportStatement';
-  declaration: FunctionDeclaration; // for now, assuming we export functions
+  declaration: FunctionDeclaration | VariableDeclaration;
 }
 
 // Expressions
@@ -208,6 +210,13 @@ export interface FunctionExpression extends BaseNode {
 export interface ListLiteral extends BaseNode {
   type: 'ListLiteral';
   elements: Expression[];
+}
+
+export interface ElementLiteral extends BaseNode {
+  type: 'ElementLiteral';
+  tag: string;
+  attributes: Record<string, Expression>;
+  children: Expression[];
 }
 
 export interface UnaryExpression extends BaseNode {

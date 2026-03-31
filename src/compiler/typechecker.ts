@@ -99,8 +99,10 @@ export class TypeChecker {
         this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
       } else if (stmt.type === 'ExportStatement') {
         const decl = (stmt as AST.ExportStatement).declaration;
-        const paramTypes = decl.params.map(p => p.typeAnnotation);
-        this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
+        if (decl.type === 'FunctionDeclaration') {
+          const paramTypes = decl.params.map(p => p.typeAnnotation);
+          this.defineFunc(decl.id.name, decl.returnType, paramTypes, decl.line);
+        }
       } else if (stmt.type === 'ClassDeclaration') {
         const decl = stmt as AST.ClassDeclaration;
         this.registerClass(decl);
@@ -112,7 +114,12 @@ export class TypeChecker {
       if (stmt.type === 'FunctionDeclaration') {
         this.checkFunctionDeclarationBody(stmt as AST.FunctionDeclaration);
       } else if (stmt.type === 'ExportStatement') {
-        this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
+        const decl = (stmt as AST.ExportStatement).declaration;
+        if (decl.type === 'FunctionDeclaration') {
+          this.checkFunctionDeclarationBody(decl);
+        } else {
+          this.checkVariableDeclaration(decl);
+        }
       } else if (stmt.type === 'ClassDeclaration') {
         this.checkClassDeclaration(stmt as AST.ClassDeclaration);
       } else {
@@ -204,9 +211,15 @@ export class TypeChecker {
         }
         break;
       }
-      case 'ExportStatement':
-        this.checkFunctionDeclarationBody((stmt as AST.ExportStatement).declaration);
+      case 'ExportStatement': {
+        const decl = (stmt as AST.ExportStatement).declaration;
+        if (decl.type === 'FunctionDeclaration') {
+          this.checkFunctionDeclarationBody(decl);
+        } else {
+          this.checkVariableDeclaration(decl);
+        }
         break;
+      }
     }
   }
 
@@ -272,6 +285,7 @@ export class TypeChecker {
       case 'ObjectLiteral': return 'obj';
       case 'FunctionExpression': return 'function';
       case 'ListLiteral': return 'list';
+      case 'ElementLiteral': return 'element';
       case 'UnaryExpression': {
         // Unary minus/plus — treat as num
         return 'num';
@@ -414,6 +428,9 @@ export class TypeChecker {
         }
 
         const objType = this.checkExpression(mem.object);
+        if (objType === 'module') {
+           return 'unknown'; // Dynamic access allowed for modules
+        }
         if (this.classes.has(objType)) {
           const entry = this.classes.get(objType)!;
           if (entry.properties.has(propName)) return entry.properties.get(propName)!;

@@ -26,6 +26,7 @@ export enum TokenType {
   TYPE_BOOL = 'TYPE_BOOL',
   TYPE_LIST = 'TYPE_LIST',
   TYPE_OBJ = 'TYPE_OBJ',
+  TYPE_ELEMENT = 'TYPE_ELEMENT',
 
   // Operators & Punctuation
   ASSIGN = 'ASSIGN',
@@ -60,6 +61,7 @@ export interface Token {
   value: string;
   line: number;
   column: number;
+  leadingSpace: string;
 }
 
 const Keywords: Record<string, TokenType> = {
@@ -86,6 +88,7 @@ const TypeKeywords: Record<string, TokenType> = {
   bool: TokenType.TYPE_BOOL,
   list: TokenType.TYPE_LIST,
   obj: TokenType.TYPE_OBJ,
+  element: TokenType.TYPE_ELEMENT,
 };
 
 export class Lexer {
@@ -101,7 +104,7 @@ export class Lexer {
   public tokenize(): Token[] {
     const tokens: Token[] = [];
     while (this.position < this.source.length) {
-      this.skipWhitespace();
+      const leadingSpace = this.skipWhitespace();
       if (this.position >= this.source.length) break;
 
       const char = this.peek();
@@ -110,7 +113,7 @@ export class Lexer {
       if (char === '\n') {
         const lastToken = tokens[tokens.length - 1];
         if (lastToken && lastToken.type !== TokenType.NEWLINE) {
-          tokens.push(this.createToken(TokenType.NEWLINE, '\n'));
+          tokens.push(this.createToken(TokenType.NEWLINE, '\n', leadingSpace));
         }
         this.advance();
         this.line++;
@@ -125,17 +128,17 @@ export class Lexer {
       }
 
       if (this.isDigit(char)) {
-        tokens.push(this.readNumber());
+        tokens.push(this.readNumber(leadingSpace));
       } else if (this.isAlpha(char)) {
-        tokens.push(this.readIdentifierOrKeyword());
+        tokens.push(this.readIdentifierOrKeyword(leadingSpace));
       } else if (char === '"') {
-        tokens.push(this.readString());
+        tokens.push(this.readString(leadingSpace));
       } else {
-        tokens.push(this.readSymbol());
+        tokens.push(this.readSymbol(leadingSpace));
       }
     }
 
-    tokens.push(this.createToken(TokenType.EOF, ''));
+    tokens.push(this.createToken(TokenType.EOF, '', ''));
     
     // Filter out trailing newlines before EOF
     const cleaned = [];
@@ -161,15 +164,18 @@ export class Lexer {
     return char;
   }
 
-  private skipWhitespace() {
+  private skipWhitespace(): string {
+    let space = '';
     while (this.position < this.source.length) {
       const char = this.peek();
       if (char === ' ' || char === '\r' || char === '\t') {
+        space += char;
         this.advance();
       } else {
         break;
       }
     }
+    return space;
   }
 
   private skipComment() {
@@ -190,7 +196,7 @@ export class Lexer {
     return this.isAlpha(char) || this.isDigit(char);
   }
 
-  private readNumber(): Token {
+  private readNumber(leadingSpace: string): Token {
     let value = '';
     const startCol = this.column;
     while (this.isDigit(this.peek()) || this.peek() === '.') {
@@ -200,10 +206,10 @@ export class Lexer {
       }
       value += this.advance();
     }
-    return { type: TokenType.NUMBER_LITERAL, value, line: this.line, column: startCol };
+    return { type: TokenType.NUMBER_LITERAL, value, line: this.line, column: startCol, leadingSpace };
   }
 
-  private readIdentifierOrKeyword(): Token {
+  private readIdentifierOrKeyword(leadingSpace: string): Token {
     let value = '';
     const startCol = this.column;
     while (this.isAlphaNumeric(this.peek())) {
@@ -217,10 +223,10 @@ export class Lexer {
       type = TypeKeywords[value];
     }
 
-    return { type, value, line: this.line, column: startCol };
+    return { type, value, line: this.line, column: startCol, leadingSpace };
   }
 
-  private readString(): Token {
+  private readString(leadingSpace: string): Token {
     const startCol = this.column;
     this.advance(); // consume opening quote
     let value = '';
@@ -228,10 +234,10 @@ export class Lexer {
       value += this.advance();
     }
     this.advance(); // consume closing quote
-    return { type: TokenType.STRING_LITERAL, value, line: this.line, column: startCol };
+    return { type: TokenType.STRING_LITERAL, value, line: this.line, column: startCol, leadingSpace };
   }
 
-  private readSymbol(): Token {
+  private readSymbol(leadingSpace: string): Token {
     const char = this.peek();
     const startCol = this.column;
 
@@ -240,73 +246,75 @@ export class Lexer {
         this.advance();
         if (this.peek() === '=') {
           this.advance();
-          return { type: TokenType.EQ_EQ, value: '==', line: this.line, column: startCol };
+          return { type: TokenType.EQ_EQ, value: '==', line: this.line, column: startCol, leadingSpace };
         }
-        return { type: TokenType.ASSIGN, value: '=', line: this.line, column: startCol };
+        return { type: TokenType.ASSIGN, value: '=', line: this.line, column: startCol, leadingSpace };
       case ':':
         this.advance();
-        return { type: TokenType.COLON, value: ':', line: this.line, column: startCol };
+        return { type: TokenType.COLON, value: ':', line: this.line, column: startCol, leadingSpace };
       case '{':
         this.advance();
-        return { type: TokenType.LBRACE, value: '{', line: this.line, column: startCol };
+        return { type: TokenType.LBRACE, value: '{', line: this.line, column: startCol, leadingSpace };
       case '}':
         this.advance();
-        return { type: TokenType.RBRACE, value: '}', line: this.line, column: startCol };
+        return { type: TokenType.RBRACE, value: '}', line: this.line, column: startCol, leadingSpace };
       case '(':
         this.advance();
-        return { type: TokenType.LPAREN, value: '(', line: this.line, column: startCol };
+        return { type: TokenType.LPAREN, value: '(', line: this.line, column: startCol, leadingSpace };
       case ')':
         this.advance();
-        return { type: TokenType.RPAREN, value: ')', line: this.line, column: startCol };
+        return { type: TokenType.RPAREN, value: ')', line: this.line, column: startCol, leadingSpace };
       case '[':
         this.advance();
-        return { type: TokenType.LBRACKET, value: '[', line: this.line, column: startCol };
+        return { type: TokenType.LBRACKET, value: '[', line: this.line, column: startCol, leadingSpace };
       case ']':
         this.advance();
-        return { type: TokenType.RBRACKET, value: ']', line: this.line, column: startCol };
+        return { type: TokenType.RBRACKET, value: ']', line: this.line, column: startCol, leadingSpace };
       case ',':
         this.advance();
-        return { type: TokenType.COMMA, value: ',', line: this.line, column: startCol };
+        return { type: TokenType.COMMA, value: ',', line: this.line, column: startCol, leadingSpace };
       case '.':
         this.advance();
         if (this.peek() === '.') {
           this.advance();
-          return { type: TokenType.DOT_DOT, value: '..', line: this.line, column: startCol };
+          return { type: TokenType.DOT_DOT, value: '..', line: this.line, column: startCol, leadingSpace };
         }
-        return { type: TokenType.DOT, value: '.', line: this.line, column: startCol };
+        return { type: TokenType.DOT, value: '.', line: this.line, column: startCol, leadingSpace };
       case '+':
         this.advance();
-        return { type: TokenType.PLUS, value: '+', line: this.line, column: startCol };
+        return { type: TokenType.PLUS, value: '+', line: this.line, column: startCol, leadingSpace };
       case '-':
         this.advance();
-        return { type: TokenType.MINUS, value: '-', line: this.line, column: startCol };
+        return { type: TokenType.MINUS, value: '-', line: this.line, column: startCol, leadingSpace };
       case '*':
         this.advance();
-        return { type: TokenType.STAR, value: '*', line: this.line, column: startCol };
+        return { type: TokenType.STAR, value: '*', line: this.line, column: startCol, leadingSpace };
       case '/':
         // comments are already handled, so this is just division
         this.advance();
-        return { type: TokenType.SLASH, value: '/', line: this.line, column: startCol };
+        return { type: TokenType.SLASH, value: '/', line: this.line, column: startCol, leadingSpace };
       case '>':
         this.advance();
-        return { type: TokenType.GT, value: '>', line: this.line, column: startCol };
+        return { type: TokenType.GT, value: '>', line: this.line, column: startCol, leadingSpace };
       case '<':
         this.advance();
-        return { type: TokenType.LT, value: '<', line: this.line, column: startCol };
+        return { type: TokenType.LT, value: '<', line: this.line, column: startCol, leadingSpace };
       case '!':
         this.advance();
         if (this.peek() === '=') {
             this.advance();
-            return { type: TokenType.NOT_EQ, value: '!=', line: this.line, column: startCol };
+            return { type: TokenType.NOT_EQ, value: '!=', line: this.line, column: startCol, leadingSpace };
         }
         // Fallback for general unhandled
-        throw new Error(`Unexpected character: ${char} at line ${this.line}`);
+        return { type: TokenType.IDENTIFIER, value: '!', line: this.line, column: startCol, leadingSpace }; // treat stray bangs as identifiers for JSX 
       default:
-        throw new Error(`Unexpected character: ${char} at line ${this.line}`);
+        // For other unknown chars (like unicode symbols in JSX text) we emit them as identifier chunks
+        this.advance();
+        return { type: TokenType.IDENTIFIER, value: char, line: this.line, column: startCol, leadingSpace };
     }
   }
 
-  private createToken(type: TokenType, value: string): Token {
-    return { type, value, line: this.line, column: this.column };
+  private createToken(type: TokenType, value: string, leadingSpace: string): Token {
+    return { type, value, line: this.line, column: this.column, leadingSpace };
   }
 }

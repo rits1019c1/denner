@@ -48,7 +48,10 @@ export class CodeGenerator {
       if (stmt.type === 'FunctionDeclaration') {
         this.emitFunctionForwardDeclaration(stmt as AST.FunctionDeclaration);
       } else if (stmt.type === 'ExportStatement') {
-        this.emitFunctionForwardDeclaration((stmt as AST.ExportStatement).declaration);
+        const decl = (stmt as AST.ExportStatement).declaration;
+        if (decl.type === 'FunctionDeclaration') {
+          this.emitFunctionForwardDeclaration(decl as AST.FunctionDeclaration);
+        }
       }
     }
     this.emit('');

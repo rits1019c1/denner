@@ -64,13 +64,22 @@ export class Parser {
 
   private parseExportStatement(): AST.ExportStatement {
     const line = this.previous().line;
-    this.consume(TokenType.FUNCTION, "Expected 'function' after 'export'.");
-    const funcDecl = this.parseFunctionDeclaration(true);
-    return {
-      type: 'ExportStatement',
-      declaration: funcDecl as AST.FunctionDeclaration,
-      line
-    };
+    if (this.match(TokenType.FUNCTION)) {
+      const funcDecl = this.parseFunctionDeclaration(true);
+      return {
+        type: 'ExportStatement',
+        declaration: funcDecl,
+        line
+      };
+    } else if (this.check(TokenType.IDENTIFIER)) {
+      const varDecl = this.parseVariableDeclaration();
+      return {
+        type: 'ExportStatement',
+        declaration: varDecl,
+        line
+      };
+    }
+    throw this.error(this.peek(), "Expected function or variable declaration after 'export'.");
   }
 
   private parseImportStatement(): AST.ImportStatement {
@@ -454,6 +463,8 @@ export class Parser {
         const argument = this.parsePrimary();
         return { type: 'UnaryExpression', operator, argument, line: token.line };
       }
+      case TokenType.LT:
+        return this.parseElementLiteral(token.line);
       default:
         throw this.error(token, `Unexpected token in primary expression: ${token.value} (${token.type})`);
     }
@@ -555,7 +566,113 @@ export class Parser {
     return expr;
   }
 
+  private parseElementLiteral(line: number): AST.ElementLiteral {
+    let tagToken = this.peek();
+    if (tagToken.type !== TokenType.IDENTIFIER && !this.isKeywordToken(tagToken.type)) {
+       throw this.error(tagToken, "Expected tag name after '<'.");
+    }
+    this.advance();
+    const tag = tagToken.value;
+    const attributes: Record<string, AST.Expression> = {};
+
+    while (!this.check(TokenType.GT) && !this.check(TokenType.SLASH) && !this.isAtEnd()) {
+      if (this.match(TokenType.NEWLINE)) continue;
+      
+      let attrToken = this.peek();
+      if (attrToken.type !== TokenType.IDENTIFIER && !this.isKeywordToken(attrToken.type)) {
+         throw this.error(attrToken, "Expected attribute name.");
+      }
+      this.advance();
+      let attrNameValue = attrToken.value;
+      
+      let attrValue: AST.Expression = { type: 'BooleanLiteral', value: true, line: attrToken.line };
+      if (this.match(TokenType.ASSIGN)) {
+        if (this.match(TokenType.STRING_LITERAL)) {
+          attrValue = { type: 'StringLiteral', value: this.previous().value, line: this.previous().line };
+        } else if (this.match(TokenType.LBRACE)) {
+          attrValue = this.parseExpression();
+          this.consume(TokenType.RBRACE, "Expected '}' after attribute expression.");
+        } else if (this.match(TokenType.NUMBER_LITERAL)) {
+          attrValue = { type: 'NumberLiteral', value: parseFloat(this.previous().value), line: this.previous().line };
+        } else {
+          throw this.error(this.peek(), "Expected string, number, or {expression} for attribute value.");
+        }
+      }
+      attributes[attrNameValue] = attrValue;
+    }
+
+    const isSelfClosing = this.match(TokenType.SLASH);
+    this.consume(TokenType.GT, isSelfClosing ? "Expected '>' after '/'." : "Expected '>' after tag name.");
+
+    const children: AST.Expression[] = [];
+
+    if (!isSelfClosing) {
+      let textBuffer = "";
+      let textLine = line;
+
+      while (!this.isAtEnd()) {
+         if (this.check(TokenType.LT) && this.peek(1).type === TokenType.SLASH) {
+            break;
+         }
+
+         if (this.check(TokenType.LT)) {
+            if (textBuffer.trim().length > 0) {
+              children.push({ type: 'StringLiteral', value: textBuffer.trim(), line: textLine });
+              textBuffer = "";
+            }
+            this.advance(); // consume `<`
+            children.push(this.parseElementLiteral(this.previous().line));
+         } else if (this.match(TokenType.LBRACE)) {
+            if (textBuffer.trim().length > 0) {
+              children.push({ type: 'StringLiteral', value: textBuffer.trim(), line: textLine });
+              textBuffer = "";
+            }
+            children.push(this.parseExpression());
+            this.consume(TokenType.RBRACE, "Expected '}' after expression.");
+         } else {
+            const token = this.advance();
+            if (textBuffer === "") textLine = token.line;
+            textBuffer += (token.leadingSpace || "") + token.value;
+         }
+      }
+
+      if (textBuffer.trim().length > 0) {
+         children.push({ type: 'StringLiteral', value: textBuffer.trim(), line: textLine });
+      }
+
+      this.consume(TokenType.LT, "Expected '<' for closing tag.");
+      this.consume(TokenType.SLASH, "Expected '/' for closing tag.");
+      
+      let closeTagToken = this.peek();
+      if (closeTagToken.type !== TokenType.IDENTIFIER && !this.isKeywordToken(closeTagToken.type)) {
+          throw this.error(closeTagToken, "Expected closing tag name.");
+      }
+      this.advance();
+      if (closeTagToken.value !== tag) {
+          throw this.error(closeTagToken, `Expected closing tag '</${tag}>', but got '</${closeTagToken.value}>'.`);
+      }
+      this.consume(TokenType.GT, "Expected '>' after closing tag.");
+    }
+
+    return {
+      type: 'ElementLiteral',
+      tag,
+      attributes,
+      children,
+      line
+    };
+  }
+
   // --- Utilities ---
+  
+  private isKeywordToken(type: TokenType): boolean {
+     return type.startsWith('TYPE_') || [
+        TokenType.IF, TokenType.ELSE, TokenType.WHILE,
+        TokenType.FOR, TokenType.IN, TokenType.RETURN, TokenType.FUNCTION, 
+        TokenType.CLASS, TokenType.THIS, 
+        TokenType.IMPORT, TokenType.EXPORT, TokenType.OBSERVE, TokenType.AS
+     ].includes(type);
+  }
 
   private match(...types: TokenType[]): boolean {
     for (const type of types) {
@@ -612,6 +729,7 @@ export class Parser {
       case TokenType.TYPE_BOOL: return 'bool';
       case TokenType.TYPE_LIST: return 'list';
       case TokenType.TYPE_OBJ: return 'obj';
+      case TokenType.TYPE_ELEMENT: return 'element';
       case TokenType.IDENTIFIER: return token.value;
       default:
         throw new Error(`Unknown type token: ${token.type} at line ${token.line}`);

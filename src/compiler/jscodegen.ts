@@ -284,6 +284,13 @@ export class JSCodeGenerator {
         const un = expr as AST.UnaryExpression;
         return `(${un.operator}${this.generateExpression(un.argument)})`;
       }
+      case 'ElementLiteral': {
+        const el = expr as AST.ElementLiteral;
+        const attrsStr = Object.entries(el.attributes)
+            .map(([k, v]) => `'${k}': ${this.generateExpression(v)}`).join(', ');
+        const chillStr = el.children.map(c => this.generateExpression(c)).join(', ');
+        return `new DennerElement("${el.tag}", {${attrsStr}}, [${chillStr}])`;
+      }
     }
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
   }
